@@ -154,7 +154,7 @@ while (( "$#" ));do
     -l|--log)
       ADD_TO_INPUT=0;
       if test `echo $2 | grep "-"`;then
-        LOGFILE="./shifter.log"
+        LOGFILE="./spliter.log"
         shift 1
       else
         LOGFILE=$2
@@ -164,7 +164,7 @@ while (( "$#" ));do
     -e|--err)
       ADD_TO_INPUT=0;
       if test `echo $2 | grep "-"`;then
-        ERRFILE="./shifter.err"
+        ERRFILE="./spliter.err"
         shift 1
       else
         ERRFILE=$2
