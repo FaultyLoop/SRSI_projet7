@@ -1,5 +1,5 @@
 # SRSI_projet7
-Repo about something like blockcain, fragmentation, ssl and other stuff, a student project<br>
+Repo about something like blockchain, fragmentation, ssl and other stuff, students project<br>
 <br>
 Note about spliter.sh<br>
 <br>
