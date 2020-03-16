@@ -4,7 +4,7 @@ Repo about something like blockchain, fragmentation, ssl and other stuff, studen
 Note about spliter.sh<br>
 <br>
  Initial release :<br>
-  ! Not protection about user input at this state, need to check what kind of stubid stuff i can do before<br>
+  ! Not protected against user input at this state, need to check what kind of stupid stuff i do before cleanup<br>
   * Grab file (remote support via scp and a basic, non-viable check)<br>
   * Split files (via split command) into defined block size<br>
   * Rename files with the coresponding hash (md5 or arg)<br>
