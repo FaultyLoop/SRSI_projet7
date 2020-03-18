@@ -1,202 +1,260 @@
 #!/bin/bash
-#Defaults
 
-BLOCKS=4096
-LIMIT=2048
-TIMER=5
-TIMEOUT=5
-HASH_METHOD=md5
-LOGFILE=1
-ERRFILE=2
-UNIT=
+#CONFIG - DEFAULT
+BLOCK_SIZE=4094         #4096 bytes
+FHASH_MODE=md5          #File (splited) Hash (checksum) md5
+FHASH_NAME=true         #File (splited) Rename as <hashed-value>
+LOG_STDERR=2            #Stderr
+LOG_STDOUT=1            #Stdout
+INDEX_VERS=0            #Basic index version (0 : top-down, 1 : link-pem (wip), 2 : future)
+VERBOSE_LV=0            #Verbose Level
+WORK_SPACE=`realpath .` #Sctipt Workplace (default .)
+SIZES_UNIT=             #Unit of file size
 
-function help(){
-  echo "To be determined"
-  exit 0
+#CONFIG - CONSTANT
+LOG_MODENV=none         #Log Modifier Not a Var
+LOG_MODESZ=size         #Log Modifier size
+LOG_STAERR=error        #Log Status Error
+LOG_STAINF=info         #Log Status Info
+LOG_STAWRN=warn         #Log Status Warn
+LOG_STASET=vset          #Log Status Set
+RTIME_MODE=`id -u`      #Check root (future)
+
+#CONFIG - DYNAMIC
+BLOCK_STEP=0            #Block Used
+FILE_COUNT=0            #Files Do
+FILES_LIST=             #List Of Files
+INDEX_HEAD=             #Index Header (See HeaderInfo)
+
+#CONFIG - FUNCTION
+setBlockMax(){
+    setIndexHeader
+    HEADSTR_LEN=${#INDEX_HEAD}
+    HASH_SAMPLE=`echo "" | openssl $FHASH_MODE | cut -d " " -f2`
+    HASHSTR_LEN=${#HASH_SAMPLE}
+    
+    #Default/user defined
+    log $LOG_STAINF BLOCK_SIZE $LOG_MODESZ
+    
+    BLOCK_FILE=$(($BLOCK_SIZE+$FILE_COUNT+$HASHSTR_LEN+$HEADSTR_LEN+1))
+    log $LOG_STAINF BLOCK_FILE $LOG_MODESZ
+    
+    FREE_SPACE=$((`df . --output=avail | cut -d " " -f1`*1000))
+    log $LOG_STAINF FREE_SPACE $LOG_MODESZ
+    
+    BLOCK_MAX=$(($FREE_SPACE/$BLOCK_FILE))
+    log $LOG_STAINF BLOCK_MAX $LOG_MODESZ
+    
+    RETURN=
 }
 
-function getsize(){
-  SIZE=`ls -s $TARGET | cut -d " " -f1`
-  SIZE=$(($SIZE*1024))
+setIndexHeader(){
+    case "$INDEX_VERS" in
+        0)
+            INDEX_HEAD="Version 0; Hash $FHASH_MODE; Block $BLOCK_SIZE;";
+        ;;
+    esac
+    RETURN=
 }
 
-function formatsize(){
-  FORMAT=" K M G T P E Z Y"
-  COUNTER=0
-  TMP=$SIZE
-  if   [[ $UNIT =~ "en" ]];then SYTAIL="B"; else SYTAIL="o";fi
-  if   [[ $UNIT =~ "si" ]];then DIVISOR=1000; else SYTAIL="i$SYTAIL"; DIVISOR=1024; fi
-  if ! [[ $UNIT =~ "-" ]];then
-    while test $TMP -ge $DIVISOR;do
-      TMP=$(($TMP/$DIVISOR))
-      COUNTER=$(($COUNTER+1))
-      SYM="`echo $FORMAT | cut -d " " -f$COUNTER`"
-      if [[ $UNIT =~ $SYM ]];then
-        break
-      fi
+#MAIN   - FUNCTION
+checkBlockUsage(){
+    for FILE in `echo -e "$FILES_LIST"`;do
+        getsize $FILE
+        FILE_SIZE=$RETURN
+        BLOCK_USAGE=$(($FILE_SIZE/$BLOCK_SIZE))
+        BLOCK_TOTAL=$(($BLOCK_FILE*$BLOCK_USAGE))
+        log "----------------------" "" $LOG_MODENV
+        log $LOG_STAINF "FILE $FILE" $LOG_MODENV
+        log $LOG_STAINF FILE_SIZE $LOG_MODESZ
+        log $LOG_STAINF BLOCK_USAGE
+        log $LOG_STAINF BLOCK_TOTAL $LOG_MODESZ
+        
+        if [[ $BLOCK_TOTAL > $BLOCK_MAX ]];then
+            echo "wip"
+        fi
+        
+        
+        
     done
-  fi
-  FORMATSIZE="$TMP $SYM$SYTAIL"
+}
+checkfile(){
+    for FILE in `echo -e "$FILES_LIST"`;do
+        if [[ $ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]];then
+            echo "WIP"
+        fi
+        TFILE=`realpath -eq $FILE`
+        if [[ $TFILE = "" ]];then
+            if [[ $REMOVE = "" ]];then REMOVE=$FILE; else REMOVE=`echo "$REMOVE\n$FILE"`;fi
+        else log $LOG_STAINF "File $FILE OK" $LOG_MODENV;   fi
+    done
+    for FILE in $REMOVE;do
+        FILES_LIST=${FILES_LIST//$FILE/}
+        log $LOG_STAWRN "$FILE is INVALID" $LOG_MODENV
+    done
+    FILE_COUNT=`echo -e $FILES_LIST | wc -l`
+    RETURN=`echo -e $REMOVE | wc -l`
 }
 
-function checkfile(){
-  TMP="$PATH_TO_INPUTS"
-  PATH_TO_INPUTS=""
-  for TARGET in $TMP;do
-    PATH_TO_INPUT=`realpath -eq $TARGET`
-    if test $? -ne 0;then PATH_TO_INPUT=$TARGET;fi
-    if [[ $TARGET =~ ":" ]];then
-      scp -o ConnectTimeout=$TIMEOUT $TARGET ./
-      if test $? -ne 0;then
-        echo "ERROR : File not recovered from server $TARGET" >& $ERRFILE
-        continue
-      fi
-      TARGET=`basename \`echo $TARGET | cut -d ":" -f 2\``
-      TARGET=`realpath $TARGET`
-      PATH_TO_INPUT=$TARGET
-    elif test $? -eq 0;then
-      echo "ERROR : File $TARGET not found"
-      continue
-    fi
-    PATH_TO_INPUTS="$PATH_TO_INPUTS $PATH_TO_INPUT"
-  done
-  if test $STRICT || test -z $PATH_TO_INPUTS ;then
-    echo "SCRIPT FATAL ERROR : UNABLE TO CONTINUE" >& $ERRFILE
-    exit 1
-  fi
-  echo $PATH_TO_INPUTS
-}
-
-function splitfile(){
-  for TARGET in $PATH_TO_INPUTS;do
-    getsize;formatsize
-    HASH_ORIGIN=`openssl $HASH_METHOD $TARGET | cut -d " " -f 2`
-    FRAGMENTS=$(($SIZE/$BLOCKS))
-    echo "FILE        $TARGET"
-    echo "SIZE        $FORMATSIZE"
-    echo "FRAGMENTS   $FRAGMENTS"
-    echo "FRAG. SIZE  $FORMATBLOCKS"
-    echo "HASH_METHOD $HASH_METHOD"
-    echo "HASH_RESULT $HASH_ORIGIN"
-    echo "------------------------"
-
-    if test $FRAGMENTS -gt $LIMIT;then
-      if test -z $AUTOCONTINUE;then
-        echo "Fagments limit at $LIMIT, continu ?(y/[N])"
-        read CONTINUE
-      else
-        CONTINUE=$AUTOCONTINUE
-        echo "Fagments limit at $LIMIT, selection bypass ([$CONTINUE])"
-      fi
-      case "$CONTINUE" in
-          y|Y|yes|YES)
-            ;;
-          *)
-            continue
-            ;;
-      esac
-    fi
-
-    mkdir -p dir_$HASH_ORIGIN
-    if test $? -eq 0;then
-      cd "dir_$HASH_ORIGIN"
-      printf "Splitting : "
-      split -b $BLOCKS $TARGET
-	    printf "Done\n"
-      COUNTER=0
-      TOTAL=`ls -1 | wc -l`
-      > index
-      for FILE in `ls`;do
-        FILE=`realpath $FILE`
-        HASH=`openssl $HASH_METHOD $FILE | cut -d " " -f 2`
-        mv $FILE $HASH
-        echo "$HASH" >> index
-        printf "\rSorting : $COUNTER/$TOTAL"
-        COUNTER=$(($COUNTER+1))
-      done
-      cd ..
-      printf "\nDone !\n"
+formatsize(){
+    COUNTER=0
+    FORMAT=" K M G T P E Z Y"
+    SIZE=$1
+    SYTAIL=
+    if [[ $SIZES_UNIT =~ "i" ]];then SYTAIL="i"; DIVISOR=1024; else DIVISOR=1000; fi
+    if [[ $SIZES_UNIT =~ "b" ]];then
+        SYTAIL="bit"
+        SIZE=$(($SIZE*8))
     else
-      echo "ERROR : Workdir unavailable"
+        if [[ $SIZES_UNIT =~ "B" ]];then SYTAIL="${SYTAIL}B";
+        else SYTAIL="${SYTAIL}o";fi
     fi
-  done
+    while [[ $SIZE -ge $DIVISOR ]];do
+        KEEP=$(($SIZE%$DIVISOR))
+        SIZE=$(($SIZE/$DIVISOR))
+        COUNTER=$(($COUNTER+1))
+        SYM="`echo $FORMAT | cut -d " " -f$COUNTER`"
+        if [[ $SIZES_UNIT =~ $SYM ]];then break;fi
+    done
+    if [[ $KEEP < 100 ]];then KEEP="0$KEEP";fi
+    RETURN="$SIZE,$KEEP $SYM$SYTAIL"
 }
 
-#Aruments Parser
+getsize(){
+  SIZE=`ls -l $1 | cut -d " " -f5`
+  RETURN=$SIZE
+}
+
+help() {
+    case "$1" in
+        *|-h|--help)
+            if [[ "$1" = "-h" ]] || [[ "$1" = "--help" ]];then
+                echo "Display this help"
+            fi
+            echo "-h    --help  <option>    : Display helper or usage if <option> is given"
+            
+        ;;
+    esac
+    RETURN=
+}
+
+log(){
+    BYPASS=$RETURN
+    OUTPUT=$LOG_STDOUT
+    OFORMAT="\033[39m"
+    EFORMAT="\033[39m"
+    case "$1" in
+        $LOG_STAERR)
+            OUTPUT=$LOG_STDERR
+            OFORMAT="\033[31m"
+            ;;
+        $LOG_STAWRN)
+            OFORMAT="\033[31m"
+        ;;
+        $LOG_STAINF)
+            OFORMAT="\033[36m"
+        ;;
+        *)
+            OFORMAT=""
+        ;;
+    esac
+    
+    case "$3" in
+        $LOG_MODESZ)
+            formatsize $(($2))
+            EFORMAT="\033[32m"
+            VALUE=$RETURN
+        ;;
+        $LOG_MODENV)
+            VALUE=
+        ;;
+        *)
+            VALUE=$(($2))
+        ;;
+        
+    esac
+    if [[ $VALUE != "" ]];then
+        echo -e "$OFORMAT$1 \033[33m$2\033[39m AT $EFORMAT$VALUE" >&$OUTPUT;
+    else
+        echo -e "$OFORMAT$1 \033[39m$2" >&$OUTPUT;
+    fi
+    RETURN=$BYPASS
+}
+
+#ARGS PARSER
 while (( "$#" ));do
-  case "$1" in
-    -h|--help)
-      help
-      ;;
-    -b|--block)
-      BLOCKS=$2         ;ADD_TO_INPUT=0;
-      shift 2
-      ;;
-    -t|--timeout)
-      TIMEOUT=$2        ;ADD_TO_INPUT=0;
-      ;;
-    -i|--input)
-      PATH_TO_INPUTS=$2 ;ADD_TO_INPUT=1;
-      shift 2
-      ;;
-    -n|--no)
-      AUTOCONTINUE="n"  ;ADD_TO_INPUT=0;
-      shift 1
-      ;;
-    -u|--unit)
-      UNIT=$2           ;ADD_TO_INPUT=0;
-      shift 2
-      ;;
-    -v|--verbose)
-      VERBOSE=1         ;ADD_TO_INPUT=0;
-      shift 1
-      ;;
-    -l|--log)
-      ADD_TO_INPUT=0;
-      if test `echo $2 | grep "-"`;then
-        LOGFILE="./spliter.log"
-        shift 1
-      else
-        LOGFILE=$2
-        shift 2
-      fi
-      ;;
-    -e|--err)
-      ADD_TO_INPUT=0;
-      if test `echo $2 | grep "-"`;then
-        ERRFILE="./spliter.err"
-        shift 1
-      else
-        ERRFILE=$2
-        shift 2
-      fi
-      ;;
-    -y|--yes)
-      AUTOCONTINUE="y"  ;ADD_TO_INPUT=0;
-      shift 1
-      ;;
-    --hash-method)
-      HASH_METHOD=$2    ;ADD_TO_INPUT=0;
-      shift 2
-      ;;
-    --strict)
-      STRICT=1          ;ADD_TO_INPUT=0;
-      shift 1
-      ;;
-    -*|--*)
-      echo "Erreur : Argument '$1' Invalide" >& 2
-      exit -1
-      ;;
-    *)
-      if test $ADD_TO_INPUT = 1;then
-        PATH_TO_INPUTS="$PATH_TO_INPUTS $1"
-      else
-        echo "Erreur : Symbole '$1' inconnu" >& 2
-        exit -1
-      fi
-      shift 1
-     esac
+    case "$1" in
+        -h|--help)
+            help $2
+            exit 0;
+        ;;
+        -i|--input)
+            while [[ ! "$2" =~ "-" ]] && [[ "$2" != "" ]];do
+                if [[ $FILES_LIST = "" ]];then FILES_LIST=$2; else FILES_LIST="$FILES_LIST\n$2";fi
+                shift 1
+            done;
+            FILE_COUNT=`echo -e $FILES_LIST | wc -l`
+            shift 1
+        ;;
+        -u|--unit)
+            SIZES_UNIT=$2
+            shift 1
+        ;;
+        -v*|--verbose)
+            if [[ "$1" = "--verbose" ]];then
+                VERBOSE=$2
+                shift 1
+            else VERBOSE=$((${#1}-1));fi
+            log $LOG_STASET VERBOSE
+            shift 1
+        ;;
+        -s|--strict)
+            if [[ $2 != "" ]];then STRICT_MODE=$2; else STRICT_MODE="y"; fi
+            shift 1
+            ;;
+        *) 
+            shift 1
+        ;;
+    esac
 done
-SIZE=$BLOCKS;formatsize;FORMATBLOCKS=$FORMATSIZE
+
+#CONFIG - PREPARE
+if [[ $FILE_COUNT = 0 ]];then
+    log "No file, exiting"
+    exit 0
+fi
+setBlockMax
+
+log $LOG_STAINF "$FILE_COUNT File declared" $LOG_MODENV
 checkfile
-splitfile
+log $LOG_STAINF "$FILE_COUNT File confirmed" $LOG_MODENV
+
+if [[ $STRICT_MODE =~ "y" ]];then
+    if [[ $RETURN != 0 ]];then
+        log $LOG_STAERR "Echec de la recuperation de certains ficher en mode strict" $LOG_MODENV
+        exit 1
+    fi
+fi
+
+checkBlockUsage
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
