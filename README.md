@@ -3,6 +3,11 @@ Repo about something like blockchain, fragmentation, ssl and other stuff, studen
 <br>
 Note about spliter.sh<br>
 <br>
+
+ Rework 1 - no version
+  * Code Rework (not finished, not functional)
+  
+ 
  Initial release :<br>
   ! Not protected against user input at this state, need to check what kind of stupid stuff i do before cleanup<br>
   * Grab file (remote support via scp and a basic, non-viable check)<br>
