@@ -4,7 +4,10 @@ Repo about something like blockchain, fragmentation, ssl and other stuff, studen
 Note about spliter.sh<br>
 <br>
 
- Rework 1 - no version
+ Rework 1 - update 1
+  * Add gpg key generation for each file
+
+ Rework 1 - initial
   * Code Rework (not finished, not functional)
   
  
