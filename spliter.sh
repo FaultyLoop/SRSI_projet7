@@ -1,24 +1,28 @@
 #!/bin/bash
 
 #CONFIG - DEFAULT
-BLOCK_SIZE=4094         #4096 bytes
+BLOCK_SIZE=4096         #4096 bytes
+ENCRY_MODE=rsa          #Encrypt Mode
+ENCRY_SIZE=4096         #Encrypt Length
 FHASH_MODE=md5          #File (splited) Hash (checksum) md5
 FHASH_NAME=true         #File (splited) Rename as <hashed-value>
 LOG_STDERR=2            #Stderr
 LOG_STDOUT=1            #Stdout
-INDEX_VERS=0            #Basic index version (0 : top-down, 1 : link-pem (wip), 2 : future)
+INDEX_VERS=1            #Basic index version (0 : top-down, 1 : link-pem (wip), 2 : future)
 VERBOSE_LV=0            #Verbose Level
 WORK_SPACE=`realpath .` #Sctipt Workplace (default .)
 SIZES_UNIT=             #Unit of file size
 
 #CONFIG - CONSTANT
-LOG_MODENV=none         #Log Modifier Not a Var
+LOG_MODENV=ntvr         #Log Modifier Not a Var
 LOG_MODESZ=size         #Log Modifier size
 LOG_STAERR=error        #Log Status Error
 LOG_STAINF=info         #Log Status Info
+LOG_STARUN=exec         #Log Status Executing
 LOG_STAWRN=warn         #Log Status Warn
-LOG_STASET=vset          #Log Status Set
+LOG_STASET=vset         #Log Status Set
 RTIME_MODE=`id -u`      #Check root (future)
+RTIME_USER=`id -un`     #Get name (untrusted)
 
 #CONFIG - DYNAMIC
 BLOCK_STEP=0            #Block Used
@@ -28,15 +32,14 @@ INDEX_HEAD=             #Index Header (See HeaderInfo)
 
 #CONFIG - FUNCTION
 setBlockMax(){
-    setIndexHeader
-    HEADSTR_LEN=${#INDEX_HEAD}
     HASH_SAMPLE=`echo "" | openssl $FHASH_MODE | cut -d " " -f2`
-    HASHSTR_LEN=${#HASH_SAMPLE}
+    setIndexHeader $HASH_SAMPLE $BLOCK_SIZE "test"
+    HEADSTR_LEN=${#INDEX_HEAD}
     
     #Default/user defined
     log $LOG_STAINF BLOCK_SIZE $LOG_MODESZ
     
-    BLOCK_FILE=$(($BLOCK_SIZE+$FILE_COUNT+$HASHSTR_LEN+$HEADSTR_LEN+1))
+    BLOCK_FILE=$(($BLOCK_SIZE+$FILE_COUNT+$HEADSTR_LEN+1))
     log $LOG_STAINF BLOCK_FILE $LOG_MODESZ
     
     FREE_SPACE=$((`df . --output=avail | cut -d " " -f1`*1000))
@@ -49,9 +52,12 @@ setBlockMax(){
 }
 
 setIndexHeader(){
+    INDEX_HEAD="Version $INDEX_VERS; Hash $1; Block $2;Filename $3";
     case "$INDEX_VERS" in
         0)
-            INDEX_HEAD="Version 0; Hash $FHASH_MODE; Block $BLOCK_SIZE;";
+        ;;
+        1)
+            INDEX_HEAD="$INDEX_HEAD;encrypted";
         ;;
     esac
     RETURN=
@@ -60,10 +66,14 @@ setIndexHeader(){
 #MAIN   - FUNCTION
 checkBlockUsage(){
     for FILE in `echo -e "$FILES_LIST"`;do
+        FILE=`realpath $FILE`
+        
         getsize $FILE
         FILE_SIZE=$RETURN
         BLOCK_USAGE=$(($FILE_SIZE/$BLOCK_SIZE))
+        echo "$FILE_SIZE $BLOCK_SIZE"
         BLOCK_TOTAL=$(($BLOCK_FILE*$BLOCK_USAGE))
+        
         log "----------------------" "" $LOG_MODENV
         log $LOG_STAINF "FILE $FILE" $LOG_MODENV
         log $LOG_STAINF FILE_SIZE $LOG_MODESZ
@@ -74,8 +84,65 @@ checkBlockUsage(){
             echo "wip"
         fi
         
+        HASH_SUM=`openssl $FHASH_MODE $FILE | cut -d " " -f2`
+        WORK_DIR="dir_$HASH_SUM"
         
+        log $LOG_STAINF FHASH_MODE
+        log $LOG_STAINF HASH_SUM
         
+        if [[ -d $WORK_DIR ]];then log $LOG_STAINF "Reseting Index" $LOG_MODENV;
+        else
+            mkdir -p $WORK_DIR
+            log $LOG_STAINF "Creating Index" $LOG_MODENV
+        fi
+        cd $WORK_DIR
+        setIndexHeader $HASH_SUM $BLOCK_USAGE `basename $FILE`
+        
+        if [[ $INDEX_VERS > 0 ]];then
+            log $LOG_STAINF "L'erreur suivante est à ignorer : " $LOG_MODENV
+            `cat >gpg <<EOF
+                %echo Generating a basic OpenPGP key
+                Key-Type: $ENCRY_MODE
+                Key-Length: $ENCRY_SIZE
+                Subkey-Type: $ENCRY_MODE
+                Subkey-Length: $ENCRY_SIZE
+                Name-Real: SpliterScript
+                Name-Comment: $HASH_SUM
+                Name-Email: splt@mail.com
+                Expire-Date: 0
+                Passphrase: $HASH_SUM
+                # Do a commit here, so that we can later print "done" :-)
+                %commit
+                %echo done
+            EOF` 2> /dev/null
+    
+            gpg --verbose --batch --generate-key gpg
+            gpg --list-keys
+            rm gpg
+        fi
+
+        echo $INDEX_HEAD > index
+        
+        log $LOG_STAINF "Splitting File ..." $LOG_MODENV
+        split -b $BLOCK_SIZE $FILE 
+        log $LOG_STAINF "Ordering Files ..." $LOG_MODENV
+        
+        COUNTER=0
+        TOTAL=`ls x* | wc -l`
+        for SFILE in `ls x*`;do
+            if [[ $INDEX_VERS > 0 ]];then
+                test=
+            fi
+            
+            
+            HASH_SUM=`openssl $FHASH_MODE $SFILE | cut -d " " -f2`
+            echo $HASH_SUM >> index
+            mv $SFILE $HASH_SUM
+            COUNTER=$(($COUNTER+1))
+            log $LOG_STAINF "\rSorting : $COUNTER/$TOTAL" $LOG_MODENV
+        done
+        
+        cd ..
     done
 }
 checkfile(){
@@ -143,6 +210,7 @@ log(){
     OUTPUT=$LOG_STDOUT
     OFORMAT="\033[39m"
     EFORMAT="\033[39m"
+    FFORMAT=
     case "$1" in
         $LOG_STAERR)
             OUTPUT=$LOG_STDERR
@@ -169,14 +237,14 @@ log(){
             VALUE=
         ;;
         *)
-            VALUE=$(($2))
+            VALUE="${!2}"
         ;;
         
     esac
     if [[ $VALUE != "" ]];then
-        echo -e "$OFORMAT$1 \033[33m$2\033[39m AT $EFORMAT$VALUE" >&$OUTPUT;
+        echo -e "$OFORMAT$1 \033[33m$2\033[39m AT $EFORMAT$VALUE$FFORAMT" >&$OUTPUT;
     else
-        echo -e "$OFORMAT$1 \033[39m$2" >&$OUTPUT;
+        echo -e "$OFORMAT$1 \033[39m$2$FFORMAT" >&$OUTPUT;
     fi
     RETURN=$BYPASS
 }
