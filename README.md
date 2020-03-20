@@ -3,17 +3,16 @@ Repo about something like blockchain, fragmentation, ssl and other stuff, studen
 <br>
 Note about spliter.sh<br>
 <br>
-
  Rework 1 - update 2
   <p>- Removing gpg </p>
   <p>* File encryption via openssl</p>
  <br>
  Rework 1 - update 1
-  * Add gpg key generation for each file
-
+  <p>* Add gpg key generation for each file</p>
+ <br>
  Rework 1 - initial
-  * Code Rework (not finished, not functional)
-  
+  <p>* Code Rework (not finished, not functional)</p>
+   <br>
  
  Initial release :<br>
   ! Not protected against user input at this state, need to check what kind of stupid stuff i do before cleanup<br>
