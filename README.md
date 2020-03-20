@@ -5,7 +5,7 @@ Note about spliter.sh<br>
 <br>
 
  Rework 1 - update 2
-  <p>-</p> Removing gpg
+  <p>- Removing gpg </p>
   * File encryption via openssl
  
  Rework 1 - update 1
