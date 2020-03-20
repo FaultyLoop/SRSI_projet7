@@ -6,8 +6,8 @@ Note about spliter.sh<br>
 
  Rework 1 - update 2
   <p>- Removing gpg </p>
-  * File encryption via openssl
- 
+  <p>* File encryption via openssl</p>
+ <br>
  Rework 1 - update 1
   * Add gpg key generation for each file
 
