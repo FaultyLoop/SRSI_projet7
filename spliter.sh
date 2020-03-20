@@ -2,8 +2,7 @@
 
 #CONFIG - DEFAULT
 BLOCK_SIZE=4096         #4096 bytes
-ENCRY_MODE=rsa          #Encrypt Mode
-ENCRY_SIZE=4096         #Encrypt Length
+ENCRY_MODE=aes256       #Encrypt Mode
 FHASH_MODE=md5          #File (splited) Hash (checksum) md5
 FHASH_NAME=true         #File (splited) Rename as <hashed-value>
 LOG_STDERR=2            #Stderr
@@ -35,19 +34,19 @@ setBlockMax(){
     HASH_SAMPLE=`echo "" | openssl $FHASH_MODE | cut -d " " -f2`
     setIndexHeader $HASH_SAMPLE $BLOCK_SIZE "test"
     HEADSTR_LEN=${#INDEX_HEAD}
-    
+
     #Default/user defined
     log $LOG_STAINF BLOCK_SIZE $LOG_MODESZ
-    
+
     BLOCK_FILE=$(($BLOCK_SIZE+$FILE_COUNT+$HEADSTR_LEN+1))
     log $LOG_STAINF BLOCK_FILE $LOG_MODESZ
-    
+
     FREE_SPACE=$((`df . --output=avail | cut -d " " -f1`*1000))
     log $LOG_STAINF FREE_SPACE $LOG_MODESZ
-    
+
     BLOCK_MAX=$(($FREE_SPACE/$BLOCK_FILE))
     log $LOG_STAINF BLOCK_MAX $LOG_MODESZ
-    
+
     RETURN=
 }
 
@@ -67,29 +66,33 @@ setIndexHeader(){
 checkBlockUsage(){
     for FILE in `echo -e "$FILES_LIST"`;do
         FILE=`realpath $FILE`
-        
+
         getsize $FILE
         FILE_SIZE=$RETURN
         BLOCK_USAGE=$(($FILE_SIZE/$BLOCK_SIZE))
         echo "$FILE_SIZE $BLOCK_SIZE"
         BLOCK_TOTAL=$(($BLOCK_FILE*$BLOCK_USAGE))
-        
+
         log "----------------------" "" $LOG_MODENV
         log $LOG_STAINF "FILE $FILE" $LOG_MODENV
         log $LOG_STAINF FILE_SIZE $LOG_MODESZ
         log $LOG_STAINF BLOCK_USAGE
         log $LOG_STAINF BLOCK_TOTAL $LOG_MODESZ
-        
+
         if [[ $BLOCK_TOTAL > $BLOCK_MAX ]];then
             echo "wip"
         fi
-        
+
+        if [[ $INDEX_VERS = 2 ]];then
+          echo "WIP"
+        fi
+
         HASH_SUM=`openssl $FHASH_MODE $FILE | cut -d " " -f2`
         WORK_DIR="dir_$HASH_SUM"
-        
+
         log $LOG_STAINF FHASH_MODE
         log $LOG_STAINF HASH_SUM
-        
+
         if [[ -d $WORK_DIR ]];then log $LOG_STAINF "Reseting Index" $LOG_MODENV;
         else
             mkdir -p $WORK_DIR
@@ -97,51 +100,33 @@ checkBlockUsage(){
         fi
         cd $WORK_DIR
         setIndexHeader $HASH_SUM $BLOCK_USAGE `basename $FILE`
-        
-        if [[ $INDEX_VERS > 0 ]];then
-            log $LOG_STAINF "L'erreur suivante est à ignorer : " $LOG_MODENV
-            `cat >gpg <<EOF
-                %echo Generating a basic OpenPGP key
-                Key-Type: $ENCRY_MODE
-                Key-Length: $ENCRY_SIZE
-                Subkey-Type: $ENCRY_MODE
-                Subkey-Length: $ENCRY_SIZE
-                Name-Real: SpliterScript
-                Name-Comment: $HASH_SUM
-                Name-Email: splt@mail.com
-                Expire-Date: 0
-                Passphrase: $HASH_SUM
-                # Do a commit here, so that we can later print "done" :-)
-                %commit
-                %echo done
-            EOF` 2> /dev/null
-    
-            gpg --verbose --batch --generate-key gpg
-            gpg --list-keys
-            rm gpg
-        fi
 
         echo $INDEX_HEAD > index
-        
+
         log $LOG_STAINF "Splitting File ..." $LOG_MODENV
-        split -b $BLOCK_SIZE $FILE 
+        split -b $BLOCK_SIZE $FILE
         log $LOG_STAINF "Ordering Files ..." $LOG_MODENV
-        
+
         COUNTER=0
         TOTAL=`ls x* | wc -l`
         for SFILE in `ls x*`;do
-            if [[ $INDEX_VERS > 0 ]];then
-                test=
-            fi
-            
-            
+            case "$INDEX_VERS" in
+              0)
+              ;;
+              1|2)
+                openssl enc -$ENCRY_MODE -pbkdf2 -pass pass:$HASH_SUM -salt -in $SFILE -out $SFILE.enc
+                mv $SFILE.enc $SFILE
+                #openssl enc -d -aes256 -pbkdf2 -pass pass:$HASH_SUM -salt -in $SFILE -out $SFILE.dec
+              ;;
+            esac
+
             HASH_SUM=`openssl $FHASH_MODE $SFILE | cut -d " " -f2`
             echo $HASH_SUM >> index
             mv $SFILE $HASH_SUM
             COUNTER=$(($COUNTER+1))
-            log $LOG_STAINF "\rSorting : $COUNTER/$TOTAL" $LOG_MODENV
+            #log $LOG_STAINF "\rSorting : $COUNTER/$TOTAL" $LOG_MODENV
         done
-        
+
         cd ..
     done
 }
@@ -199,7 +184,7 @@ help() {
                 echo "Display this help"
             fi
             echo "-h    --help  <option>    : Display helper or usage if <option> is given"
-            
+
         ;;
     esac
     RETURN=
@@ -226,7 +211,7 @@ log(){
             OFORMAT=""
         ;;
     esac
-    
+
     case "$3" in
         $LOG_MODESZ)
             formatsize $(($2))
@@ -239,7 +224,7 @@ log(){
         *)
             VALUE="${!2}"
         ;;
-        
+
     esac
     if [[ $VALUE != "" ]];then
         echo -e "$OFORMAT$1 \033[33m$2\033[39m AT $EFORMAT$VALUE$FFORAMT" >&$OUTPUT;
@@ -280,7 +265,7 @@ while (( "$#" ));do
             if [[ $2 != "" ]];then STRICT_MODE=$2; else STRICT_MODE="y"; fi
             shift 1
             ;;
-        *) 
+        *)
             shift 1
         ;;
     esac
@@ -305,24 +290,3 @@ if [[ $STRICT_MODE =~ "y" ]];then
 fi
 
 checkBlockUsage
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
