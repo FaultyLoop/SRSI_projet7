@@ -3,8 +3,11 @@ Repo about something like blockchain, fragmentation, ssl and other stuff, studen
 <br>
 Note about spliter.sh<br>
 <br>
+ Rework 1 - update 4
+  <p>* Argument rectification (-b|--block missing)</p>
+  
  Rework 1 - update 3
-  <p>* Ajout de l'option "file:" pour péciser une liste dans un fichier (usage -i file:list file2 file:list2) </p>
+  <p>* Add input option "file:" to get a list (usage -i file:list file2 file:list2) </p>
 
  Rework 1 - update 2
   <p>- Removing gpg </p>
