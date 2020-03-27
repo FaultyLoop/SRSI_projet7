@@ -3,6 +3,9 @@ Repo about something like blockchain, fragmentation, ssl and other stuff, studen
 <br>
 Note about spliter.sh<br>
 <br>
+ Rework 1 - update 3
+  <p>* Ajout de l'option "file:" pour péciser une liste dans un fichier (usage -i file:list file2 file:list2 </p>
+
  Rework 1 - update 2
   <p>- Removing gpg </p>
   <p>* File encryption via openssl</p>
