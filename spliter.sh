@@ -243,7 +243,12 @@ while (( "$#" ));do
         ;;
         -i|--input)
             while [[ ! "$2" =~ "-" ]] && [[ "$2" != "" ]];do
-                if [[ $FILES_LIST = "" ]];then FILES_LIST=$2; else FILES_LIST="$FILES_LIST\n$2";fi
+				if [[ "$2" =~ "file:" ]];then
+					$2=`echo $2 | cut -d "file:" -f 2`
+					for FILE in `cat $2`;do
+						if [[ $FILES_LIST = "" ]];then FILES_LIST=$FILE; else FILES_LIST="$FILES_LIST\n$FILE";fi
+					done
+                elif [[ $FILES_LIST = "" ]];then FILES_LIST=$2; else FILES_LIST="$FILES_LIST\n$2";fi
                 shift 1
             done;
             FILE_COUNT=`echo -e $FILES_LIST | wc -l`
