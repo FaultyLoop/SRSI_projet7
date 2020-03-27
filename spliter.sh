@@ -241,6 +241,10 @@ while (( "$#" ));do
             help $2
             exit 0;
         ;;
+		-b|--block)
+			BLOCK_SIZE=$2
+			shift 1
+		;;
         -i|--input)
             while [[ ! "$2" =~ "-" ]] && [[ "$2" != "" ]];do
 				if [[ "$2" =~ "file:" ]];then
