@@ -1,7 +1,14 @@
 # SRSI_projet7
 Repo about something like blockchain, fragmentation, ssl and other stuff, students project<br>
 <br>
-Note about spliter.sh<br>
+Note about split.sh<br>
+<br>
+ Rework 2 - update 1
+  <p>* Code optimization & bug correction</p>
+  <p>* Add dummies file for project overview</p>
+  <p>* Starting writting of join.sh (basically the invert of split.sh)</p>
+  <p>| Editing file: input option to list: </p>
+  
 <br>
  Rework 1 - update 4
   <p>* Argument rectification (-b|--block missing)</p>
