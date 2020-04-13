@@ -1,8 +1,6 @@
 # SRSI_projet7
 Repo about something like blockchain, fragmentation, ssl and other stuff, students project<br>
 <br>
-Note about split.sh<br>
-<br>
  Rework 2 - update 1
   <p>* Code optimization & bug correction</p>
   <p>* Add dummie files for project overview</p>
