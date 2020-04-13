@@ -5,7 +5,7 @@ Note about split.sh<br>
 <br>
  Rework 2 - update 1
   <p>* Code optimization & bug correction</p>
-  <p>* Add dummies file for project overview</p>
+  <p>* Add dummie files for project overview</p>
   <p>* Starting writting of join.sh (basically the invert of split.sh)</p>
   <p>| Editing file: input option to list: </p>
   
