@@ -1,6 +1,10 @@
 # SRSI_projet7
 Repo about something like blockchain, fragmentation, ssl and other stuff, students project<br>
 <br>
+ Rework 2 - update 2
+  <p>* bug correction in split.sh, about filename and order (testX trigger "file already in list" for test)</p>
+  <p>* functionnal join.sh (version 1 of index supported only)</p>
+<br>
  Rework 2 - update 1
   <p>* Code optimization & bug correction</p>
   <p>* Add dummie files for project overview</p>
