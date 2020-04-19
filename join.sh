@@ -15,6 +15,7 @@ LOG_MODEDV=vars         #Log Modifier Var Values
 LOG_MODELL=last         #Log Modifier Last Log
 LOG_MODENV=ntvr         #Log Modifier Not a Var
 LOG_MODESL=same         #Log Modifier Same Line (\r)
+LOG_STADBG=debug        #Log Status Debug
 LOG_STAERR=error        #Log Status Error
 LOG_STAINF=info         #Log Status Info
 LOG_STAWRN=warn         #Log Status Warn
@@ -50,9 +51,12 @@ log(){
     esac
     shift 1
   done
-
+  
   case "$VERBOSE_LV" in
     0) if [[ $lvl ]];then return ;fi;;
+	1|2|3) if ! [[ "$LOG_STAINF,$LOG_STAWRN,$LOG_STAERR" =~ $lvl ]];then return ;fi;;
+	4|5|6) if ! [[ "$LOG_STAINF,$LOG_STAWRN,$LOG_STAERR,$LOG_STADBG" =~ $lvl ]];then return ;fi;;
+	7|8|9) ;;
   esac
 
   printf "$headformat \033[39m$msg $execformat$val \033[39m$tailformat"
@@ -69,7 +73,59 @@ main() {
   fi
   log $LOG_STAINF "Reading Header"
   IFS=';' read -r -a head <<<  $(head $INDEX -n 1)
-  #info access
+  
+  index=0
+  while [[ ${head[$index]} ]];do
+	varname="$(echo ${head[$index]} | cut -d = -f 1)"
+	value=$(echo ${head[$index]} | cut -d = -f 2)
+	index=$(($index+1))
+	case $varname in
+		"version")version=$value;;
+		"hash")hash=$value;;
+		"block")block=$value;;
+		"filename")filename=$value;;
+		"plaintext"|"encrypted")
+			encrypted=$([[ $varname = "encrypted" ]] && echo 1 || echo 0)
+			varname=encrypted
+			;;
+		*) log $LOG_STAWRN "Unregoginzed entry \033[33m'$varname'\033[39m";continue;;
+	esac
+	log $LOG_STASET $varname
+  done
+  files=$(tail -n +2 $INDEX)
+  total=$(tail -n +2 $INDEX | wc -l)
+  count=0
+  > $WORK_SPACE/merge
+  chmod 0600 $WORK_SPACE/merge
+  > $WORK_SPACE/tmp
+  chmod 0600 $WORK_SPACE/tmp
+  
+  for line in $files;do
+	case "$version" in
+		1) 
+			file=$(echo $line | cut -d ";" -f 1)
+			size=$(echo $line | cut -d ";" -f 2)
+			if ! [[ -f $WORK_SPACE/$file ]];then 
+				log $LOG_STAERR "Missing Fragment $file"
+				exit -1
+			fi
+			if [[ $encrypted -eq 1 ]];then
+				openssl enc -d -$ENCRY_MODE -pbkdf2 -pass pass:$hash -salt -in $WORK_SPACE/$file > $WORK_SPACE/tmp
+				file=$WORK_SPACE/tmp
+			fi
+			head -c $size $file >> $WORK_SPACE/merge
+		;;
+		*) log $LOG_STAERR "Unsupported Version $version";exit -2 ;;
+	esac
+	count=$(($count+1))
+	log $LOG_STAINF "File $count/$total " $LOG_MODESL
+  done
+  log $LOG_STAINF "Removing tmp file"
+  rm $WORK_SPACE/tmp
+  log $LOG_STAINF "Moving merge file"
+  mv $WORK_SPACE/merge $OUTPUT_DIR
+  log $LOG_STAINF "Output -> $OUTPUT_DIR"
+ 
 }
 
 #ARGS   - PARSER

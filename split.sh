@@ -114,9 +114,12 @@ log(){
     esac
     shift 1
   done
-
+  
   case "$VERBOSE_LV" in
     0) if [[ $lvl ]];then return ;fi;;
+	1|2|3) if ! [[ "$LOG_STAINF,$LOG_STAWRN,$LOG_STAERR" =~ $lvl ]];then return ;fi;;
+	4|5|6) if ! [[ "$LOG_STAINF,$LOG_STAWRN,$LOG_STAERR,$LOG_STADBG" =~ $lvl ]];then return ;fi;;
+	7|8|9) ;;
   esac
 
   printf "$headformat \033[39m$msg $execformat$val \033[39m$tailformat"
@@ -197,18 +200,18 @@ while (( "$#" ));do
                       for file in $list;do
                         file=$(realpath $file)
                         if [[ -f $file ]] && ! [[ $file =~ $FILES_LIST ]];then
-                          if     [[ $FILES_LIST = "" ]];then FILES_LIST=$file;
-                          elif ! [[ $FILES_LIST =~ $file ]];then FILES_LIST="$FILES_LIST;$file";
+                          if     [[ $FILES_LIST = "" ]];then FILES_LIST="$file;";
+                          elif ! [[ $FILES_LIST =~ "$file;" ]];then FILES_LIST="$FILES_LIST$file;";
                           else log $LOG_STADBG "$file Already present in list";fi
                         fi
                       done
                     else log $LOG_STADBG "$list : No such file"; fi
                 elif [[ -f $2 ]];then
                     file=$(realpath $2)
-                    if     [[ $FILES_LIST = "" ]];then FILES_LIST=$file;
-                    elif ! [[ $FILES_LIST =~ $file ]];then FILES_LIST="$FILES_LIST;$file";
+                    if     [[ $FILES_LIST = "" ]];then FILES_LIST="$file;";
+                    elif ! [[ $FILES_LIST =~ "$file;" ]];then FILES_LIST="$FILES_LIST$file;";
                     else log $LOG_STADBG "$file Already present in list";fi
-                else log $LOG_STADBG "$file : No such file"; fi
+                else log $LOG_STADBG "$2 : No such file"; fi
                 shift 1
             done;
             log $LOG_STASET FILES_LIST
