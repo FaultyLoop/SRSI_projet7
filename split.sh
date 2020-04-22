@@ -72,7 +72,7 @@ getsize(){
   echo $(stat $1 -c %s)
 }
 
-help() {
+help(){
     case "$1" in
         *|-h|--help)
             if [[ "$1" = "-h" ]] || [[ "$1" = "--help" ]];then
@@ -162,7 +162,8 @@ main(){
 }
 
 setIndexHeader(){
-    header="version=$INDEX_VERS;hash=$1;block=$2;filename=$3";
+	time=$(date +"%s")
+    header="version=$INDEX_VERS;hash=$1;block=$2;filename=$3;time=$time";
     case "$INDEX_VERS" in
         0) echo "$header;plaintext=;";;
         1) echo "$header;encrypted=$ENCRY_MODE;";;
@@ -213,7 +214,7 @@ while (( "$#" ));do
                     else log $LOG_STADBG "$file Already present in list";fi
                 else log $LOG_STADBG "$2 : No such file"; fi
                 shift 1
-            done;
+            done
             log $LOG_STASET FILES_LIST
             FILE_COUNT=`echo -e $FILES_LIST | wc -l`
             shift 1
@@ -231,7 +232,6 @@ while (( "$#" ));do
         ;;
         *)shift 1;;
     esac
-
 done
 
 #CONFIG - PREPARE

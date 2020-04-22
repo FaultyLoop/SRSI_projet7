@@ -62,7 +62,7 @@ log(){
   printf "$headformat \033[39m$msg $execformat$val \033[39m$tailformat"
 }
 
-main() {
+main(){
   if ! [[ -f $INDEX ]];then
     if ! [[ -f $WORK_SPACE/index ]];then
       log $LOG_STAERR "No index file found"
@@ -84,6 +84,7 @@ main() {
 		"hash")hash=$value;;
 		"block")block=$value;;
 		"filename")filename=$value;;
+		"time")time=$value;;
 		"plaintext"|"encrypted")
 			encrypted=$([[ $varname = "encrypted" ]] && echo 1 || echo 0)
 			varname=encrypted
