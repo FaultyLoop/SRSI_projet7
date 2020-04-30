@@ -1,6 +1,12 @@
 # SRSI_projet7
 Repo about something like blockchain, fragmentation, ssl and other stuff, students project<br>
 <br>
+ Rework 2 - update 4
+  <p>* Changed shuffler behaviour concerning fileserver ip fetch</p>
+  <p>+ Remote Host simple detection & validation</p>
+  <p>+ Automatic File & bloc transfer</p>
+  <p>+ Automatic Chain ip list</p>
+<br>
  Rework 2 - update 3
   <p>* bug correction / optimization</p>
   <p>* shuffler.sh working (the targeted system must have chaincheck.sh</p>
