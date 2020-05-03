@@ -63,15 +63,14 @@ checkserverchain() {
 			log $LOG_STAINF "$ip : Testing Server Access" $LOG_MODESL
 			ssh -oBatchMode=yes -oConnectTimeout=3 -ql $USERACCESS $ip exit 0
 			if [[ $? -eq 255 ]];then
-				ping -W1 -c1 $ip >& /dev/null
-				if [[ ! $? -eq 0 ]];then
-					log $LOG_STAINF "$ip : Host is down or not responding"
-					if [[ $ipcopy =~ $ip ]];then log $LOG_STAWRN "$ip : Host failure (removing)"
-					else echo "#$ip	UNJOINABLE" >> $IPCHAINFILE;fi
-				elif [[ -z $(ssh-keygen -H -F $ip) ]];then 
+				if [[ -z $(ssh-keygen -H -F $ip) ]];then 
 					log $LOG_STAINF "$ip : Host not set in ~/.ssh/known_hosts"
 					if [[ $ipcopy =~ $ip ]];then log $LOG_STAWRN "$ip : Host failure (removing)"
 					else echo "#$ip	UNKOWN_HOST" >> $IPCHAINFILE;fi
+				else
+					log $LOG_STAINF "$ip : Host is down or not responding"
+					if [[ $ipcopy =~ $ip ]];then log $LOG_STAWRN "$ip : Host failure (removing)"
+					else echo "#$ip	UNJOINABLE" >> $IPCHAINFILE;fi
 				fi
 			else 
 				log $LOG_STAINF "$ip : Host Responding and valid"
@@ -97,6 +96,10 @@ getfileserver() {
 			done
 		else log $LOG_STAERR "Host response invalid";fi
 	done
+	if [[ -z $IPFILESERVER ]];then
+		log $LOG_STAERR "fatal : no fileserver defined"
+		exit -3
+	fi
 	IPFILESERVER=$(echo $IPFILESERVER | sed "s/;/ /g")
 	IPFILESERVER=($IPFILESERVER)
 }
@@ -147,31 +150,50 @@ main(){
 	if [[ -z $IPCHAIN ]];then log $LOG_STAERR "fatal : No Chainserver ip defined";exit -1;fi
 	
 	getfileserver
-
-	if [[ SELECT_MODE -eq 1 ]];then serverchoice;fi
-	log $LOG_STAINF "${#IPFILESERVER[@]} fileserver selected";
 	
 	cd $WORK_SPACE
 	FILES=($(tail -n +2 index | cut -d ";" -f 1))
-	log $LOG_STAINF "Index give ${#FILES[@]} Files ($(du "${FILES[@]}" -c | grep total| cut -d$'\t' -f1) o)"
+	log $LOG_STAINF "Index give ${#FILES[@]} Files ($(du $WORK_SPACE/ -lh | cut -d$'\t' -f1))"
+	INDEXMD5=$(md5sum index | cut -d' ' -f1)
+	
+	if [[ SELECT_MODE -eq 1 ]];then serverchoice;fi
+	log $LOG_STAINF "${#IPFILESERVER[@]} fileserver selected";
 	
 	for index in "${!FILES[@]}";do
-		for ip in ${IPFILESERVER[@]};do
-			if [[ $(ssh $USERACCESS@$ip "[[ -f ~/files/${FILES[$index]} ]] && echo 0 || echo 1") -eq 0 ]];then 
-				log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, ignored" $LOG_MODESL
-				continue
+		if [[ SELECT_MODE -eq 1 ]];then SERVERLIST=(serverchoice)
+		else SERVERLIST=$IPFILESERVER;fi
+		
+		for ip in ${SERVERLIST[@]};do
+			if [[ $(ssh $USERACCESS@$ip "[[ -f ~/files/${FILES[$index]} ]] && echo 0 || echo 1") -eq 0 ]];then
+				log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, ignored " $LOG_MODESL
+			else
+				scp -q ./${FILES[$index]} $USERACCESS@$ip:~/files/${FILES[$index]}
+				log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, uploaded" $LOG_MODESL
 			fi
-			log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, sending" $LOG_MODESL
-			scp -q ./${FILES[$index]} $USERACCESS@$ip:~/files/
-		done
-		for ip in $IPCHAIN;do
-			MD5=$(md5sum ${FILES[$index]} | cut -d" " -f 1)
-			ssh $USERACCESS@$ip -oConnectTimeout=3 "(./chaincheck.sh --check-block $MD5 && exit 0) || exit 255"
 		done
 	done
-	log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]} : Done"
+	log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, done    "
+	MD5INDEX=$(md5sum $WORK_SPACE/index | cut -d" " -f 1)
+	
+	log $LOG_STAINF "Seeding Index"
+	for ip in $IPCHAIN;do scp -q $WORK_SPACE/index $USERACCESS@$ip:~/indexs/$MD5INDEX;done
+	
+	log $LOG_STAINF "Checking Blocks"
+	for index in "${!FILES[@]}";do
+		for ip in $IPCHAIN;do
+			ssh $USERACCESS@$ip "./chaincheck.sh --check-block ${FILES[$index]} --source $MD5INDEX --hash $(md5sum ${FILES[$index]} | cut -d ' ' -f1)"
+			case "$?" in
+				0) log $LOG_STAINF "Block ${FILES[$index]} Verfified";;
+				2) log $LOG_STAERR "Block ${FILES[$index]} Missing from index";;
+				4|5|6) log $LOG_STAERR "Block ${FILES[$index]} Missing block";;
+				7) log $LOG_STAERR "Block ${FILES[$index]} Cannot be identified";;
+				255) log $LOG_STAERR "SSH ERROR : Connection Failed";;
+				*) log $LOG_STAERR "Undefined Error : $?";;
+			esac
+		done
+	done
+	log $LOG_STAINF "Script completed !"
 }
-
 
 serverchoice(){
 	TOTAL=$(echo "${#IPFILESERVER[@]}")
@@ -179,27 +201,20 @@ serverchoice(){
 		log $LOG_STAERR "No file server set, fatal error"
 		exit -2
 	fi
-	log $LOG_STAINF "$TOTAL Fileserver defined"
-	if [[ $TOTAL -gt $MAX_SERVER ]];then log $LOG_STAINF "Selecting $MAX_SERVER fileserver"
+	if [[ $TOTAL -lt $MAX_SERVER ]];then echo ${IPFILESERVER[@]};
 	else
-		log $LOG_STAINF "Less fileserver than maximum authorised, setting all"
-		return
-	fi
-	
-	for i in $(seq 1 $MAX_SERVER);do
-		select=
-		while [[ -z $select ]];do
-			choice=$(($RANDOM % $TOTAL))
-			choice=${IPFILESERVER[$choice]}
-			if ! [[ $selected =~ $choice ]];then 
-				select=$choice;
-				log $LOG_STAINF "Selecting File Server : $choice"
-			fi
+		for i in $(seq 1 $MAX_SERVER);do
+			select=
+			while [[ -z $select ]];do
+				choice=$(($RANDOM % $TOTAL))
+				choice=${IPFILESERVER[$choice]}
+				if ! [[ $selected =~ $choice ]];then select=$choice;fi
+			done
+			selected="$select;$selected"
 		done
-		selected="$select;$selected"
-	done
-	selected=$(echo $selected | sed "s/;/ /g")
-	IPFILESERVER=($selected)
+		selected=$(echo $selected | sed "s/;/ /g")
+		echo $selected
+	fi
 }
 
 #ARGS   - PARSER
@@ -246,6 +261,10 @@ while (( "$#" ));do
 			checkserverchain
 			log $LOG_STAINF "Chain list : Done"
 			exit 0
+		;;
+		-u|--user)
+			USERACCESS=$2
+			shift 1
 		;;
         -v*|--verbose)
             if [[ "$1" = "--verbose" ]];then
