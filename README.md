@@ -4,7 +4,7 @@ Repo about something like blockchain, fragmentation, ssl and other stuff, studen
  Rework 2 - update 5
   <p>* Block / hash verification</p>
   <p>* Bug correction / optimization</p>
-  <p>~ Serer Selector by file nor ip</p>
+  <p>~ Server Selector by file nor ip</p>
 <br>
  Rework 2 - update 4
   <p>* Changed shuffler behaviour concerning fileserver ip fetch</p>
