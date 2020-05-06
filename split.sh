@@ -163,10 +163,11 @@ main(){
 
 setIndexHeader(){
 	time=$(date +"%s")
-    header="version=$INDEX_VERS;hash=$1;block=$2;filename=$3;time=$time";
+	filename=$(basename $3)
+    header="version=$INDEX_VERS;hash=$1;block=$2;filename=$filename;time=$time";
     case "$INDEX_VERS" in
-        0) echo "$header;plaintext=;";;
-        1) echo "$header;encrypted=$ENCRY_MODE;";;
+        0) echo "$header;encryption=plaintext;";;
+        1) echo "$header;encryption=$ENCRY_MODE;";;
     esac
 }
 
@@ -179,19 +180,14 @@ while (( "$#" ));do
         -b|--block)
           BLOCK_SIZE=$([[ $2 = "/^[0-9]*$/"]] && echo $2 || echo $BLOCK_SIZE)
           log $LOG_STASET BLOCK_SIZE
-          shift 1
         ;;
         --fill)
           case "$2" in
             random) FFILL_MODE=random ;;
             *) if [[ $2 ]];then FILL_PATRN=$2;FFILL_MODE=patten;fi ;;
           esac
-          shift 1
         ;;
-        -h|--help)
-            help $2
-            exit 0;
-        ;;
+        -h|--help) help $2;exit 0;;
         -i|--input)
             while [[ ! "$2" =~ "-" ]] && [[ "$2" != "" ]];do
                 if [[ "$2" =~ "list:" ]];then
@@ -217,21 +213,17 @@ while (( "$#" ));do
             done
             log $LOG_STASET FILES_LIST
             FILE_COUNT=`echo -e $FILES_LIST | wc -l`
-            shift 1
         ;;
         -v*|--verbose)
             if [[ "$1" = "--verbose" ]];then
               if [[ $2 =~ '^[0-9]+$' ]];then VERBOSE_LV=$2; else VERBOSE_LV=1;fi
             else VERBOSE_LV=$((${#1}-1));fi
             log $LOG_STASET VERBOSE_LV
-            shift 1
         ;;
-        --si)
-          SIZEFORMAT=si
-          shift 1
-        ;;
-        *)shift 1;;
+        --si)SIZEFORMAT=si;;
+        *);;
     esac
+	shift 1
 done
 
 #CONFIG - PREPARE

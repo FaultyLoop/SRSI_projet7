@@ -71,8 +71,9 @@ main(){
     INDEX=$WORK_SPACE/index
     log $LOG_STAINF "Index Found"
   fi
+  
   log $LOG_STAINF "Reading Header"
-  IFS=';' read -r -a head <<<  $(head $INDEX -n 1)
+  head=($(cat $INDEX | grep -v "^#" | head -n 1 | sed "s/;/ /g"))
   
   index=0
   while [[ ${head[$index]} ]];do
@@ -80,26 +81,25 @@ main(){
 	value=$(echo ${head[$index]} | cut -d = -f 2)
 	index=$(($index+1))
 	case $varname in
-		"version")version=$value;;
-		"hash")hash=$value;;
-		"block")block=$value;;
-		"filename")filename=$value;;
-		"time")time=$value;;
-		"plaintext"|"encrypted")
-			encrypted=$([[ $varname = "encrypted" ]] && echo 1 || echo 0)
-			varname=encrypted
-			;;
+		"version")	 version=$value;;
+		"hash")		 hash=$value;;
+		"block")	 block=$value;;
+		"filename")	 filename=$value;;
+		"time")		 time=$value;;
+		"encryption")encryption=$value;;
 		*) log $LOG_STAWRN "Unregoginzed entry \033[33m'$varname'\033[39m";continue;;
 	esac
 	log $LOG_STASET $varname
   done
-  files=$(tail -n +2 $INDEX)
-  total=$(tail -n +2 $INDEX | wc -l)
+  files=$(cat $INDEX | grep -v "^#" | sed 1d)
+  total=$(echo $files | wc -l)
   count=0
   > $WORK_SPACE/merge
   chmod 0600 $WORK_SPACE/merge
   > $WORK_SPACE/tmp
   chmod 0600 $WORK_SPACE/tmp
+  
+  ciphers=$(openssl enc -ciphers)
   
   for line in $files;do
 	case "$version" in
@@ -110,7 +110,7 @@ main(){
 				log $LOG_STAERR "Missing Fragment $file"
 				exit -1
 			fi
-			if [[ $encrypted -eq 1 ]];then
+			if [[ ciphers =~ $encrypted ]];then
 				openssl enc -d -$ENCRY_MODE -pbkdf2 -pass pass:$hash -salt -in $WORK_SPACE/$file > $WORK_SPACE/tmp
 				file=$WORK_SPACE/tmp
 			fi
@@ -132,33 +132,28 @@ main(){
 #ARGS   - PARSER
 while (( "$#" ));do
     case "$1" in
-        -h|--help)
-            help $2
-            exit 0;
-        ;;
+        -h|--help) help $2;exit 0;;
         -o|--output)
           if [[ $2 = "auto" ]];then OUTPUT_DIR=auto
           elif [[ -f $2 ]];then
             read -p "Output file $2 Exist, overwrite ? [y|N] " key
             if [[ "yYoO" =~ $key ]];then OUTPUT_DIR=$(realpath $OUTPUT_DIR);fi
           else OUTPUT_DIR=$(realpath $OUTPUT_DIR);fi
-          log $LOG_STAINF "Output -> $OUTPUT_DIR";
-          shift 1
+          log $LOG_STAINF "Output -> $OUTPUT_DIR"
         ;;
         -v*|--verbose)
             if [[ "$1" = "--verbose" ]];then
-              if [[ $2 =~ '^[0-9]+$' ]];then VERBOSE_LV=$2; else VERBOSE_LV=1;fi
+				if [[ $2 =~ '^[0-9]+$' ]];then VERBOSE_LV=$2; else VERBOSE_LV=1;fi
             else VERBOSE_LV=$((${#1}-1));fi
             log $LOG_STASET VERBOSE_LV
-            shift 1
         ;;
         *)
           if [[ -d $1 ]];then
             WORK_SPACE=$(realpath $1)
             log $LOG_STASET WORK_SPACE
           fi
-          shift 1
     esac
+    shift 1
 done
 
 main
