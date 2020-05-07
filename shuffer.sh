@@ -235,6 +235,11 @@ while (( "$#" ));do
             log $LOG_STASET SELECT_MODE
 			log $LOG_STASET MAX_SERVER
 		;;
+		--servers-max)
+			if [[ $2 -gt 0 ]];then
+				MAX_SERVER=$22;
+			fi
+		;;
 		--chain-server-list) if [[ -f $2 ]];then IPCHAINFILE=$2;fi;;
 		-c|--chain-server)
 			while [[ ! "$2" =~ "-" ]] && [[ "$2" != "" ]] && [[ "$2" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]];do
