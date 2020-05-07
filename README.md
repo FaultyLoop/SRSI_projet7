@@ -1,6 +1,7 @@
 # SRSI_projet7
 Repo about something like blockchain, fragmentation, ssl and other stuff, students project<br>
 <br>
+<code>Minor update : --server-max option added in shuffler (3 by default)</code>
  Rework 2 - update 5
   <p>* Block / hash verification</p>
   <p>* Bug correction / optimization</p>
