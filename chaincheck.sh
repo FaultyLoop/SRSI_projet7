@@ -27,7 +27,7 @@ LOG_STAWRN=warn         #Log Status Warn
 LOG_STASET=vset         #Log Status Set
 
 if [[ ! -d ~/chaindb ]];then
-	mkdir ~/chaindb/indexs/ -P
+	mkdir ~/chaindb/indexs/ -p
 	> ~/chaindb/fileserver
 	> ~/chaindb/chainblock
 	chmod 0700 ~/chaindb -r
@@ -133,9 +133,9 @@ main(){
 				fi
 				log $LOG_STAINF "Search by name give $SOURCE"
 			fi
-			if [[ -z $(cat ~/chaindb/indexs/$SOURCE | grep "####### INDEX ######") ]];then printf "####### INDEX ######\n";done
+			if [[ -z $(cat ~/chaindb/indexs/$SOURCE | grep "####### INDEX ######") ]];then printf "####### INDEX ######\n";fi
 			printf "$(cat ~/chaindb/indexs/$SOURCE)\n"
-			if [[ -z $(cat ~/chaindb/indexs/$SOURCE | grep "######## END #######") ]];then printf "######## END #######\n";done
+			if [[ -z $(cat ~/chaindb/indexs/$SOURCE | grep "######## END #######") ]];then printf "######## END #######\n";fi
 		;;
 		list)
 			log $LOG_STAINF "Listing refered files : $TARGET"
