@@ -30,7 +30,7 @@ if [[ ! -d ~/chaindb ]];then
 	mkdir ~/chaindb/indexs/ -p
 	> ~/chaindb/fileserver
 	> ~/chaindb/chainblock
-	chmod 0700 ~/chaindb -r
+	chmod -R 0700 ~/chaindb
 fi
 
 #INTERRUPTS
