@@ -157,6 +157,7 @@ main(){
 				for index in ${!list[@]};do
 					block=$(echo $OUTPUT | grep -o "$file=${list[$index]}=[a-f0-9]*" | sed "s/$file=${list[$index]}=//g")
 					if [[ $BLOCK ]] && [[ ! $(cat ~/chaindb/indexs/$block | grep -o "^$BLOCK;") ]];then continue;fi
+					if [[ $SOURCE ]] && [[ ! $file = $SOURCE ]];then continue;fi
 					
 					if [[ $LISTMODE =~ "oldest" ]] && [[ ! $index -eq 0 ]];then continue;fi
 					if [[ $LISTMODE =~ "recent" ]] && [[ ! $index -eq $((${#list[@]}-1)) ]];then continue;fi
