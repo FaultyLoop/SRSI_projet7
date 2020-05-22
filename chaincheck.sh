@@ -102,6 +102,7 @@ main(){
 				exit 6
 			fi
 			log $LOG_STAINF "Checking for : $BLOCK in $SOURCE ($HASHVALUE)"
+			CHECKED=
 			for ip in $(cat ~/chaindb/fileserver | grep -v '#' || exit 9);do
 				if [[ $ip = "127.0.0.1" ]];then
 					locate=local
@@ -111,14 +112,16 @@ main(){
 				else
 					locate=remote
 					log $LOG_STAINF "Testing remote node : " $LOG_MODESL
-					CMP=$(ssh $USERACCESS@$ip "[[ -f ~/files/$BLOCK ]] && md5sum ~/files/$BLOCK | cut -d ' ' -f1"
+					CMP=$(ssh $USERACCESS@$ip "[[ -f ~/files/$BLOCK ]] && md5sum ~/files/$BLOCK | cut -d ' ' -f1")
 					retcode=$([[ $CMP = $HASHVALUE ]] && return 0 || [[ -z $CMP ]] && return 1 || return 2)
 				fi
-				if   [[ $retcode -eq 0 ]];then log $LOG_STAINF "Testing $locate node : success" ;exit 0
+				if   [[ $retcode -eq 0 ]];then log $LOG_STAINF "Testing $locate node : success" ;CHECKED=1
 				elif [[ $retcode -eq 1 ]];then log $LOG_STAINF "Testing $locate node : file not found" 
-				elif [[ $retcode -eq 2 ]];then log $LOG_STAINF "Testing $locate node : hash failure";fi
+				elif [[ $retcode -eq 2 ]];then log $LOG_STAINF "Testing $locate node : hash failure"
+				else log $LOG_STAERR "Invalid return code : $retcode;fi
 			done
-			exit 7
+			if [[ -z $CHECKED ]];then exit 7
+			else exit 0;fi
 		;;
 		recover)
 			if [[ -z $SOURCE ]];then 
