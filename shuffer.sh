@@ -164,7 +164,7 @@ main(){
 	
 	for index in "${!FILES[@]}";do
 		if [[ SELECT_MODE -eq 1 ]];then SERVERLIST=(serverchoice)
-		else SERVERLIST=$IPFILESERVER;fi
+		else SERVERLIST=(${IPFILESERVER});fi
 		
 		for ip in ${SERVERLIST[@]};do
 			if [[ $(ssh $USERACCESS@$ip "[[ -f ./files/${FILES[$index]} ]] && echo 0 || echo 1") -eq 0 ]];then
