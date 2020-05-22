@@ -168,13 +168,15 @@ main(){
 
 		
 		for ip in ${SERVERLIST[@]};do
+			(
 			if [[ $(ssh $USERACCESS@$ip "[[ -f ./files/${FILES[$index]} ]] && echo 0 || echo 1") -eq 0 ]];then
 				IGNORED="$IGNORED$ip:${FILES[$index]};"
-				log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, ignored " $LOG_MODESL
+				log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, ignored \t\t\t\t\t" $LOG_MODESL
 			else
 				scp -q ./${FILES[$index]} $USERACCESS@$ip:~/files/${FILES[$index]}
-				log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, uploaded" $LOG_MODESL
+				log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, uploaded at $ip" $LOG_MODESL
 			fi
+			) &
 		done
 	done
 	log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, done    "
