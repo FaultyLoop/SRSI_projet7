@@ -178,7 +178,7 @@ setIndexHeader(){
 while (( "$#" ));do
     case "$1" in
         -b|--block)
-          BLOCK_SIZE=$([[ $2 = "/^[0-9]*$/"]] && echo $2 || echo $BLOCK_SIZE)
+          BLOCK_SIZE=$([[ $2 = ^[0-9]+$ ]] && echo $2 || echo $BLOCK_SIZE)
           log $LOG_STASET BLOCK_SIZE
         ;;
         --fill)
