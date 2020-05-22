@@ -167,8 +167,10 @@ main(){
 		else SERVERLIST=(${IPFILESERVER});fi
 
 		
-		for ip in ${SERVERLIST[@]};do
-			(
+		for ip in ${SERVERLIST[@]};do 
+		(
+			while [[ $ip =~ $WAITLIST ]];do wait ;done
+			WAITLIST="$WAITLIST;$ip"
 			if [[ $(ssh $USERACCESS@$ip "[[ -f ./files/${FILES[$index]} ]] && echo 0 || echo 1") -eq 0 ]];then
 				IGNORED="$IGNORED$ip:${FILES[$index]};"
 				log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, ignored \t\t\t\t\t" $LOG_MODESL
@@ -176,7 +178,8 @@ main(){
 				scp -q ./${FILES[$index]} $USERACCESS@$ip:~/files/${FILES[$index]}
 				log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, uploaded at $ip" $LOG_MODESL
 			fi
-			) &
+			WAITLIST=$(echo $WAITLIST | sed "s/$ip//g")
+		) &
 		done
 	done
 	log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, done    "
