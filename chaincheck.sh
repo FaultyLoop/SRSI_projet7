@@ -8,8 +8,8 @@ LOG_STDERR=2            #Stderr
 LOG_STDOUT=1            #Stdout
 VERBOSE_LV=0            #Verbose Level
 WORK_SPACE=`realpath .` #Sctipt Workplace (default .)
-USERACCESS=srsi7
 EXECMODE=			
+USERACCESS=srsi7
 SOURCE=
 HASHVALUE=
 LISTMODE=
@@ -106,23 +106,24 @@ main(){
 			for ip in $(cat ~/chaindb/fileserver | grep -v '#' || exit 9);do
 				if [[ $ip = "127.0.0.1" ]];then
 					locate=local
-					log $LOG_STAINF "Testing local node : " $LOG_MODESL
-					echo $HASHVALUE : $(md5sum ./files/$BLOCK | cut -d ' ' -f1)
+					log $LOG_STAINF "Testing local node : "
+					if [[ ! -f ~/files/$BLOCK ]];then continue;fi
 					retcode=$([[ ! -f ~/files/$BLOCK ]] && echo 1 || [[ ! $(md5sum ~/files/$BLOCK | cut -d ' ' -f1) = $HASHVALUE ]] && echo 2 || echo 0)
 				else
 					locate=remote
-					log $LOG_STAINF "Testing remote node : " $LOG_MODESL
-					CMP=$(ssh $USERACCESS@$ip "[[ -f ~/files/$BLOCK ]] && md5sum ~/files/$BLOCK | cut -d ' ' -f1")
-					retcode=$([[ $CMP = $HASHVALUE ]] && return 0 || [[ -z $CMP ]] && return 1 || return 2)
+					log $LOG_STAINF "Testing remote node : $ip "
+					CMP=$(ssh $USERACCESS@$ip "[[ -f ~/files/$BLOCK ]] && md5sum ~/files/$BLOCK | cut -d ' ' -f1 || exit 1")
+					retcode=$([[ $CMP = $HASHVALUE ]] && return 0 || [[ -z $CMP ]] && return 1 || return 2 )
 				fi
-				if   [[ $retcode -eq 0 ]];then log $LOG_STAINF "Testing $locate node : success" ;CHECKED=1
-				elif [[ $retcode -eq 1 ]];then log $LOG_STAINF "Testing $locate node : file not found" 
+
+				if   [[ $retcode -eq 0 ]];then log $LOG_STAINF "Testing $locate node : success";CHECKED=1
+				elif [[ $retcode -eq 1 ]];then log $LOG_STAINF "Testing $locate node : file not found"
 				elif [[ $retcode -eq 2 ]];then log $LOG_STAINF "Testing $locate node : hash failure"
-				else log $LOG_STAERR "Invalid return code : $retcode;fi
+				else log $LOG_STAERR "Return Invalid Code : $retcode";fi
 			done
 			if [[ -z $CHECKED ]];then exit 7
-			else exit 0;fi
-		;;
+			else exit 0 ;fi
+ 		;;
 		recover)
 			if [[ -z $SOURCE ]];then 
 				log $LOG_STAERR "fatal : no source given"
