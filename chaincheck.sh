@@ -8,6 +8,7 @@ LOG_STDERR=2            #Stderr
 LOG_STDOUT=1            #Stdout
 VERBOSE_LV=0            #Verbose Level
 WORK_SPACE=`realpath .` #Sctipt Workplace (default .)
+USERACCESS=srsi7
 EXECMODE=			
 SOURCE=
 HASHVALUE=
@@ -110,8 +111,8 @@ main(){
 				else
 					locate=remote
 					log $LOG_STAINF "Testing remote node : " $LOG_MODESL
-					ssh $USERACCESS@$ip "[[ ! -f ~/files/$BLOCK ]] && exit 1 || [[ ! $(md5sum ~/files/$BLOCK | cut -d ' ' -f1) = $HASHVALUE ]] && exit 2"
-					retcode=$?
+					CMP=$(ssh $USERACCESS@$ip "[[ -f ~/files/$BLOCK ]] && md5sum ~/files/$BLOCK | cut -d ' ' -f1"
+					retcode=$([[ $CMP = $HASHVALUE ]] && return 0 || [[ -z $CMP ]] && return 1 || return 2)
 				fi
 				if   [[ $retcode -eq 0 ]];then log $LOG_STAINF "Testing $locate node : success" ;exit 0
 				elif [[ $retcode -eq 1 ]];then log $LOG_STAINF "Testing $locate node : file not found" 
