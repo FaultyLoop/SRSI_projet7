@@ -104,28 +104,21 @@ main(){
 			log $LOG_STAINF "Checking for : $BLOCK in $SOURCE ($HASHVALUE)"
 			CHECKED=
 			for ip in $(cat ~/chaindb/fileserver | grep -v '#' || exit 9);do
-				if [[ $(cat ~/chaindb/chainblock | grep "$ip > $SOURCE($BLOCK:$HASHVALUE)") ]];then
-					log $LOG_STAINF "Block Registered"
-					CHECKED=1
-				fi
 				if [[ $ip = "127.0.0.1" ]];then
 					locate=local
-					log $LOG_STAINF "Testing local node : $ip " $LOG_MODESL
+					log $LOG_STAINF "Testing local node : "
 					if [[ ! -f ~/files/$BLOCK ]];then continue;fi
 					retcode=$([[ ! -f ~/files/$BLOCK ]] && echo 1 || [[ ! $(md5sum ~/files/$BLOCK | cut -d ' ' -f1) = $HASHVALUE ]] && echo 2 || echo 0)
 				else
 					locate=remote
-					log $LOG_STAINF "Testing remote node : $ip " $LOG_MODESL
+					log $LOG_STAINF "Testing remote node : $ip "
 					CMP=$(ssh $USERACCESS@$ip "[[ -f ~/files/$BLOCK ]] && md5sum ~/files/$BLOCK | cut -d ' ' -f1 || exit 1")
 					retcode=$([[ $CMP = $HASHVALUE ]] && return 0 || [[ -z $CMP ]] && return 1 || return 2 )
 				fi
 
-				if [[ $retcode -eq 0 ]];then 
-					echo "$ip > $SOURCE($BLOCK:$HASHVALUE)" >> ~/chaindb/chainblock
-					log $LOG_STAINF "Testing $locate node : $ip > success"
-					CHECKED=1
-				elif [[ $retcode -eq 1 ]];then log $LOG_STAINF "Testing $locate node : $ip > file not found"
-				elif [[ $retcode -eq 2 ]];then log $LOG_STAINF "Testing $locate node : $ip > hash failure"
+				if   [[ $retcode -eq 0 ]];then log $LOG_STAINF "Testing $locate node : success";CHECKED=1
+				elif [[ $retcode -eq 1 ]];then log $LOG_STAINF "Testing $locate node : file not found"
+				elif [[ $retcode -eq 2 ]];then log $LOG_STAINF "Testing $locate node : hash failure"
 				else log $LOG_STAERR "Return Invalid Code : $retcode";fi
 			done
 			if [[ -z $CHECKED ]];then exit 7

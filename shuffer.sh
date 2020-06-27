@@ -164,22 +164,16 @@ main(){
 	
 	for index in "${!FILES[@]}";do
 		if [[ SELECT_MODE -eq 1 ]];then SERVERLIST=(serverchoice)
-		else SERVERLIST=(${IPFILESERVER});fi
-
+		else SERVERLIST=$IPFILESERVER;fi
 		
-		for ip in ${SERVERLIST[@]};do 
-		(
-			while [[ $ip =~ $WAITLIST ]];do wait ;done
-			WAITLIST="$WAITLIST;$ip"
+		for ip in ${SERVERLIST[@]};do
 			if [[ $(ssh $USERACCESS@$ip "[[ -f ./files/${FILES[$index]} ]] && echo 0 || echo 1") -eq 0 ]];then
-				IGNORED="$IGNORED$ip:${FILES[$index]};"
-				log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, ignored \t\t\t\t\t" $LOG_MODESL
+				IGNORED="$IGNORED${FILES[$index]};"
+				log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, ignored " $LOG_MODESL
 			else
 				scp -q ./${FILES[$index]} $USERACCESS@$ip:~/files/${FILES[$index]}
-				log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, uploaded at $ip" $LOG_MODESL
+				log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, uploaded" $LOG_MODESL
 			fi
-			WAITLIST=$(echo $WAITLIST | sed "s/$ip//g")
-		) &
 		done
 	done
 	log $LOG_STAINF "Sending File $(($index+1))/${#FILES[@]}, done    "
@@ -190,11 +184,11 @@ main(){
 	
 	log $LOG_STAINF "Checking Blocks"
 	for index in "${!FILES[@]}";do
+		if [[ $IGNORED =~ "${FILES[$index]}" ]];then
+			log $LOG_STAWRN "File was ignored, skipping"
+			continue
+		fi
 		for ip in $IPCHAIN;do
-			if [[ $IGNORED =~ "$ip:${FILES[$index]}" ]];then
-				log $LOG_STAWRN "File was ignored, skipping"
-				continue
-			fi
 			ssh $USERACCESS@$ip "~/chaincheck.sh --check-block ${FILES[$index]} --source $MD5INDEX --hash $(md5sum ${FILES[$index]} | cut -d ' ' -f1) -vvvvv"
 			case "$?" in
 				0) log $LOG_STAINF "Block ${FILES[$index]} Verfified";;
