@@ -176,7 +176,18 @@ main(){
 					scp -q $USERACCESS@$ip:./files/$FILE ./
 					if [[ -f ./$FILE ]];then
 						log $LOG_STAINF "Block $FILE : Recovered"
-						break
+						for ip in $IPCHAIN;do
+							ssh $USERACCESS@$ip "~/chaincheck.sh --check-block $FILE --source $MD5INDEX --hash $(md5sum ./$FILE | cut -d ' ' -f1) -vvvvv"
+							case "$?" in
+								0) log $LOG_STAINF "Block ${FILES[$index]} Verfified";break;;
+								1) log $LOG_STAINF "No assigned File Server";;
+								2) log $LOG_STAERR "Block ${FILES[$index]} Missing from index";;
+								4|5|6) log $LOG_STAERR "Block ${FILES[$index]} Missing block";;
+								7) log $LOG_STAERR "Block ${FILES[$index]} Cannot be identified";;
+								255) log $LOG_STAERR "SSH ERROR : Connection Failed";;
+								*) log $LOG_STAERR "Undefined Error : $?";;
+							esac
+						done
 					else
 						log $LOG_STAWRN "Block $FILE : Transfere interrupted"
 					fi
@@ -186,17 +197,6 @@ main(){
 			done
 			
 			if [[ ! -f ./$FILE ]];then log $LOG_STAERR "Fragment $FILE Missing !";exit -1;fi
-			for ip in $IPCHAIN;do
-				ssh $USERACCESS@$ip "~/chaincheck.sh --check-block $FILE --source $MD5INDEX --hash $(md5sum ./$FILE | cut -d ' ' -f1) -vvvvv"
-				case "$?" in
-					0) log $LOG_STAINF "Block ${FILES[$index]} Verfified";;
-					2) log $LOG_STAERR "Block ${FILES[$index]} Missing from index";;
-					4|5|6) log $LOG_STAERR "Block ${FILES[$index]} Missing block";;
-					7) log $LOG_STAERR "Block ${FILES[$index]} Cannot be identified";;
-					255) log $LOG_STAERR "SSH ERROR : Connection Failed";;
-					*) log $LOG_STAERR "Undefined Error : $?";;
-				esac
-			done
 		done
 	done
 }

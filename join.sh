@@ -89,7 +89,7 @@ main(){
 		"encryption")encryption=$value;;
 		*) log $LOG_STAWRN "Unregoginzed entry \033[33m'$varname'\033[39m";continue;;
 	esac
-	log $LOG_STASET $varname
+	log $LOG_STADBG $varname
   done
   files=$(cat $INDEX | grep -v "^#" | sed 1d)
   total=$(echo $files | wc -l)
@@ -126,7 +126,6 @@ main(){
   log $LOG_STAINF "Moving merge file"
   mv $WORK_SPACE/merge $OUTPUT_DIR
   log $LOG_STAINF "Output -> $OUTPUT_DIR"
- 
 }
 
 #ARGS   - PARSER
@@ -137,9 +136,9 @@ while (( "$#" ));do
           if [[ $2 = "auto" ]];then OUTPUT_DIR=auto
           elif [[ -f $2 ]];then
             read -p "Output file $2 Exist, overwrite ? [y|N] " key
-            if [[ "yYoO" =~ $key ]];then OUTPUT_DIR=$(realpath $OUTPUT_DIR);fi
-          else OUTPUT_DIR=$(realpath $OUTPUT_DIR);fi
-          log $LOG_STAINF "Output -> $OUTPUT_DIR"
+            if [[ "yYoO" =~ $key ]];then OUTPUT_DIR=$(realpath $2);fi
+          else OUTPUT_DIR=$(realpath $2);fi
+          log $LOG_STASET OUTPUT_DIR
         ;;
         -v*|--verbose)
             if [[ "$1" = "--verbose" ]];then

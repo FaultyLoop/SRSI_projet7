@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
+VERSON="1.1"
 
 #CONFIG - DEFAULT
-BLOCK_SIZE=4096         #4096 bytes
+BLOCK_SIZE=4096         #Block size (fragment pre-treated)
+BINDP_SIZE=4096			#Binary Dump size (fragement final)
 ENCRY_MODE=aes256       #Encrypt Mode
 FHASH_MODE=md5          #File (splited) Hash (checksum) md5
 FHASH_NAME=true         #File (splited) Rename as <hashed-value>
 FFILL_MODE=random       #Fill method for file
-FILL_PATRN="\0"         #Fill Parrern
+FILL_PATRN="undefined"  #Fill Parrern
 INDEX_VERS=1            #Basic index version (0 : top-down, 1 : link-pem (wip), 2 : future)
 LOG_STDERR=2            #Stderr
 LOG_STDOUT=1            #Stdout
@@ -16,15 +18,16 @@ VERBOSE_LV=0            #Verbose Level
 WORK_SPACE=`realpath .` #Sctipt Workplace (default .)
 
 #CONFIG - CONSTANT
-LOG_MODESL=same         #Log Modifier Same Line (\r)
-LOG_MODESZ=size         #Log Modifier size
-LOG_STADBG=debug        #Log Status Debug
-LOG_STAERR=error        #Log Status Error
-LOG_STAHLP="\t"         #Log Status Help
-LOG_STAINF=info         #Log Status Info
-LOG_STARUN=exec         #Log Status Executing
-LOG_STAWRN=warn         #Log Status Warn
-LOG_STASET="variable_set"    #Log Status Set
+LOG_MODESL=same         	#Log Modifier Same Line (\r)
+LOG_MODESZ=size         	#Log Modifier size
+LOG_STADBG=debug        	#Log Status Debug
+LOG_STAERR=error        	#Log Status Error
+LOG_STAHLP="\t"         	#Log Status Help
+LOG_STAINF=info        		#Log Status Info
+LOG_STARUN=exec        		#Log Status Executing
+LOG_STAWRN=warn				#Log Status Warn
+LOG_STASET="variable_set"   #Log Status Set
+LIST_PATTERN=(0b00000000 0b11111111 0b01010101 0b10101010 0b11001100 0b00110011)
 
 #CONFIG - DYNAMIC
 FILES_LIST=             #List Of Files
@@ -34,19 +37,55 @@ INDEX_HEAD=             #Index Header (See HeaderInfo)
 
 #MAIN   - FUNCTION
 fill(){
-  size=$(getsize $1)
-  miss=$(($BLOCK_SIZE-$size))
-  if [[ $miss -gt 0 ]];then
-    while [[ $miss -gt 0 ]];do
-      case "$FFILL_MODE" in
-        random) dd if=/dev/urandom status=none bs=1 count=$miss seek=$size of=$1;;
-        *) bytes=$FILL_PATRN
-      esac
-      printf "$bytes" >> $file
-      size=$(getsize $1)
-      miss=$(($BLOCK_SIZE-$size))
-    done
-  fi
+	 #DISABLED 
+	> fill
+	if [[ $FFILL_MODE == "random" ]];then
+		dd if=/dev/urandom bs=1 count=$1 status=none of=fill
+	elif [[ $$FFILL_MODE != "none" ]];then
+		echo "" > fill
+	fi	
+}
+
+xsplit(){
+	fsize=$(getsize $1)
+	cd $2
+    echo $(setIndexHeader $3 $BLOCK_SIZE $1) > index
+	log $LOG_STADBG "Generating $(($fsize / $BLOCK_SIZE)) fragments"
+	for lid in $(seq 0 $(($fsize / $BLOCK_SIZE)));do
+		rid=$(od -vAn -N4 -tu4 < /dev/urandom | grep -o '[0-9]*')
+		dd status=none if=$1 bs=1 count=$BLOCK_SIZE skip=$((BLOCK_SIZE*$lid)) | openssl enc -$ENCRY_MODE -pbkdf2 -salt -pass pass:$3 -out ./$rid
+		if [[ $(getsize ./$rid) -lt $BLOCK_SIZE ]];then cpy=$(($(getsize $file) - BLOCK_SIZE*$lid))
+		else cpy=$BLOCK_SIZE;fi
+		log $LOG_STAINF "Block ($lid/$(($fsize / $BLOCK_SIZE)))" $LOG_MODESL
+		md5=$(md5sum $rid | cut -d " " -f1)
+		mv $rid $md5
+		echo "$md5;$cpy;" >> index
+	done
+	log $LOG_STAINF "Block ($(($lid))/$(($fsize / $BLOCK_SIZE))) : done"
+	cd ..
+}
+
+unformatsize(){
+	size=
+	if [[ $1 =~ ^[0-9]*$ ]];then size=$1;
+	elif [[ $1 =~ ^[0-9]*("K"|"M"|"G"|"k"|"m"|"g")("o"|"b"|"B")?$ ]];then
+		size=$(echo $1 | grep -o '^[0-9]*')
+		if [[ $1 =~ ("k"|"K") ]];then
+			if [[ $1 =~ "o" ]];then size=$(($size * 1024));
+			else size=$(($size * 1000));fi
+		elif [[ $1 =~ ("m"|"M") ]];then
+			if [[ 12 =~ "o" ]];then size=$(($size * 1024 * 1024));
+			else size=$(($size * 1000 * 1000));fi
+		elif [[ $1 =~ ("g"|"G") ]];then
+			if [[ $1 =~ "o" ]];then size=$(($size * 1024 * 1024 * 1024));
+			else size=$(($size * 1000 * 1000 * 1000));fi
+		fi
+	if [[ $1 =~ "b" ]];then size=$(($size * 8));fi
+	else
+		#log $LOG_STAWRN "Unsopported modifier : $(echo $1 | grep -o '[^0-9]*')"
+		size=$2
+	fi
+	echo $size
 }
 
 formatsize(){
@@ -131,32 +170,10 @@ main(){
     size=$(getsize $file)
     hash=$(openssl $FHASH_MODE $file | cut -d " " -f2)
     log $LOG_STAINF "File Size : $(formatsize $size)"
-    log $LOG_STAINF "File Hash  ($FHASH_MODE) : $hash"
+	log $LOG_STAINF "File Hash : $hash ($FHASH_MODE)"
 
     if ! [[ -d "dir_$hash" ]];then mkdir "dir_$hash";fi
-    cd "dir_$hash"
-    echo $(setIndexHeader $hash $BLOCK_SIZE $file) > index
-
-    log $LOG_STAINF "Splitting file"
-    split $file -b $BLOCK_SIZE
-    log $LOG_STAINF "Encrypting files"
-    total=$(ls x* | wc -l)
-    count=0
-    for file in $(ls x*);do
-      size=$(getsize $file)
-      subh=$(openssl $FHASH_MODE $file | cut -d " " -f2)
-      echo "$subh;$size;" >> index
-
-      if [[ $size -lt $BLOCK_SIZE ]];then fill $file; fi
-      mv $file $subh
-
-      #Encryption
-      openssl enc -$ENCRY_MODE -pbkdf2 -pass pass:$hash -salt -in $subh -out $subh.enc
-      mv $subh.enc $subh
-      count=$(($count+1))
-      log $LOG_STAINF "Files $count/$total" $LOG_MODESL
-    done
-    cd ..
+	xsplit $file "dir_$hash" $hash
   done
   log $LOG_STAINF "Done"
 }
@@ -171,21 +188,35 @@ setIndexHeader(){
     esac
 }
 
-#SETUP - PREPARE
-
-
 #ARGS PARSER
 while (( "$#" ));do
-    case "$1" in
-        -b|--block)
-          BLOCK_SIZE=$([[ $2 = "/^[0-9]*$/"]] && echo $2 || echo $BLOCK_SIZE)
-          log $LOG_STASET BLOCK_SIZE
+	case "$1" in
+		-b|--block)
+			BLOCK_SIZE=$(unformatsize $2 $BLOCK_SIZE)
+			log $LOG_STASET BLOCK_SIZE $LOG_MODESZ
         ;;
+		--binary-dump)
+			BINDP_SIZE=$(unformatsize $2 $BINDP_SIZE)
+			log $LOG_STASET BINDP_SIZE $LOG_MODESZ
+			;;
         --fill)
-          case "$2" in
-            random) FFILL_MODE=random ;;
-            *) if [[ $2 ]];then FILL_PATRN=$2;FFILL_MODE=patten;fi ;;
-          esac
+			case "$2" in
+				random) 
+					FFILL_MODE=random;
+					FILL_PATRN="<undefined>"
+					;;
+				sequence)
+					if [[ $3 -lt ${#LIST_PATTERN[@]} ]] && [[ $3 -ge 0 ]];then
+						FFILL_MODE=sequence;
+						FILL_PATRN=${LIST_PATTERN[$3]}
+					fi
+				;;
+				*)
+					if [[ $2 ]];then FFILL_MODE=custom;FILL_PATRN=$2;fi
+				;;
+			esac
+			log $LOG_STASET FILL_PATRN
+			log $LOG_STASET FFILL_MODE
         ;;
         -h|--help) help $2;exit 0;;
         -i|--input)
@@ -193,35 +224,41 @@ while (( "$#" ));do
                 if [[ "$2" =~ "list:" ]];then
                     list=$(echo $2 | cut -d ":" -f2)
                     if [[ -f $list ]];then
-                      list=$(cat $list | tr "\000" "\n")
-                      for file in $list;do
-                        file=$(realpath $file)
-                        if [[ -f $file ]] && ! [[ $file =~ $FILES_LIST ]];then
-                          if     [[ $FILES_LIST = "" ]];then FILES_LIST="$file;";
-                          elif ! [[ $FILES_LIST =~ "$file;" ]];then FILES_LIST="$FILES_LIST$file;";
-                          else log $LOG_STADBG "$file Already present in list";fi
-                        fi
-                      done
-                    else log $LOG_STADBG "$list : No such file"; fi
-                elif [[ -f $2 ]];then
-                    file=$(realpath $2)
-                    if     [[ $FILES_LIST = "" ]];then FILES_LIST="$file;";
-                    elif ! [[ $FILES_LIST =~ "$file;" ]];then FILES_LIST="$FILES_LIST$file;";
-                    else log $LOG_STADBG "$file Already present in list";fi
-                else log $LOG_STADBG "$2 : No such file"; fi
+						list=$(cat $list | tr "\000" "\n")
+						for file in $list;do
+							file=$(realpath $file)
+							if [[ -f $file ]] && ! [[ $file =~ $FILES_LIST ]];then
+								if     [[ $FILES_LIST = "" ]];then FILES_LIST="$file;";
+								elif ! [[ $FILES_LIST =~ "$file;" ]];then FILES_LIST="$FILES_LIST$file;";
+								else log $LOG_STADBG "$file Already present in list";fi
+							fi
+						done
+					else log $LOG_STADBG "$list : No such file"; fi
+					elif [[ -f $2 ]];then
+						file=$(realpath $2)
+						if     [[ $FILES_LIST = "" ]];then FILES_LIST="$file;";
+						elif ! [[ $FILES_LIST =~ "$file;" ]];then FILES_LIST="$FILES_LIST$file;";
+						else log $LOG_STADBG "$file Already present in list";fi
+					else log $LOG_STADBG "$2 : No such file"; fi
                 shift 1
             done
-            log $LOG_STASET FILES_LIST
             FILE_COUNT=`echo -e $FILES_LIST | wc -l`
+            log $LOG_STASET FILES_LIST
+            log $LOG_STASET FILE_COUNT
         ;;
         -v*|--verbose)
             if [[ "$1" = "--verbose" ]];then
-              if [[ $2 =~ '^[0-9]+$' ]];then VERBOSE_LV=$2; else VERBOSE_LV=1;fi
+				if [[ $2 =~ '^[0-9]+$' ]];then VERBOSE_LV=$2;
+				else VERBOSE_LV=1;fi
             else VERBOSE_LV=$((${#1}-1));fi
             log $LOG_STASET VERBOSE_LV
         ;;
-        --si)SIZEFORMAT=si;;
-        *);;
+        --si)
+			SIZEFORMAT=si
+            log $LOG_STASET SIZEFORMAT
+		;;
+        *)
+		;;
     esac
 	shift 1
 done
