@@ -163,19 +163,40 @@ main(){
 		log $LOG_STAINF "Fetching Index"
 		INDEX=$(ssh $USERACCESS@$ip "~/chaincheck.sh --recover --source $INDEX")
 		printf "$INDEX\n" > index
+		MD5INDEX=$(cat ./index | grep -v "#" | md5sum | cut -d " " -f1)
 		log $LOG_STAINF "Index Registered"
 		INDEX=$(cat index | grep -v "^#" | sed 1d | cut -d";" -f1)
 		for line in $INDEX;do
 			FILE=$(echo $line | cut -d ";" -f 1)
 			for ip in ${IPFILESERVER[@]};do
+				log $LOG_STADBG "Looking for $FILE in $ip : " $LOG_MODESL
 				ssh $USERACCESS@$ip "[[ -f ./files/$FILE ]] && exit 0 || exit 255"
 				if [[ $? -eq 0 ]];then
-					log $LOG_INF "Block $FILE Recovered"
-					scp $USERACCESS@$ip:./files/$FILE ./
-					break
+					log $LOG_STADBG "Looking for $FILE in $ip : Success"
+					scp -q $USERACCESS@$ip:./files/$FILE ./
+					if [[ -f ./$FILE ]];then
+						log $LOG_STAINF "Block $FILE : Recovered"
+						break
+					else
+						log $LOG_STAWRN "Block $FILE : Transfere interrupted"
+					fi
+				else 
+					log $LOG_STADBG "Looking for $FILE in $ip : Failed"
 				fi
 			done
-			if [[ ! -f ./$FILE ]];then log $LOG_STAERR "$FILE Not recovered !";exit -1;fi
+			
+			if [[ ! -f ./$FILE ]];then log $LOG_STAERR "Fragment $FILE Missing !";exit -1;fi
+			for ip in $IPCHAIN;do
+				ssh $USERACCESS@$ip "~/chaincheck.sh --check-block $FILE --source $MD5INDEX --hash $(md5sum ./$FILE | cut -d ' ' -f1) -vvvvv"
+				case "$?" in
+					0) log $LOG_STAINF "Block ${FILES[$index]} Verfified";;
+					2) log $LOG_STAERR "Block ${FILES[$index]} Missing from index";;
+					4|5|6) log $LOG_STAERR "Block ${FILES[$index]} Missing block";;
+					7) log $LOG_STAERR "Block ${FILES[$index]} Cannot be identified";;
+					255) log $LOG_STAERR "SSH ERROR : Connection Failed";;
+					*) log $LOG_STAERR "Undefined Error : $?";;
+				esac
+			done
 		done
 	done
 }
