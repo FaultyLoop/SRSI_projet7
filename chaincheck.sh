@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+VERSION="1.1"
 #CONFIG - DEFAULT
 ENCRY_MODE=aes256       #Encrypt Mode
 FHASH_MODE=md5          #File (splited) Hash (checksum) md5
@@ -17,6 +17,7 @@ TEMPORAL=
 #CONFIG - DYNAMIC
 
 #CONFIG - CONSTANT
+LOG_MODEAR=array		#Log Modifier Array
 LOG_MODEDV=vars         #Log Modifier Var Values
 LOG_MODELL=last         #Log Modifier Last Log
 LOG_MODENV=ntvr         #Log Modifier Not a Var
@@ -27,58 +28,19 @@ LOG_STAINF=info         #Log Status Info
 LOG_STAWRN=warn         #Log Status Warn
 LOG_STASET=vset         #Log Status Set
 
+TID=$(head -c 65536 /dev/urandom | md5sum | cut -d " " -f1)	#Transaction ID
+
 if [[ ! -d ~/chaindb ]];then
 	mkdir ~/chaindb/indexs/ -p
 	> ~/chaindb/fileserver
 	> ~/chaindb/chainblock
+	> ~/chaindb/register
 	chmod -R 0700 ~/chaindb
 fi
 
 #INTERRUPTS
 
 #MAIN   - FUNCTION
-
-getiplike(){
-	#Support <username>@<ip>
-	echo $(echo $1 | grep -E -o "([a-zA-Z0-9_]+@)?((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)")
-}
-
-log(){
-  out=$LOG_STDOUT
-  headformat=$1
-  execformat=""
-  tailformat="\n\r";
-  case "$1" in
-    $LOG_STADBG) headformat="\033[33m$headformat";;
-    $LOG_STAERR) headformat="\033[31m$headformat"; out=$LOG_STDERR;;
-    $LOG_STAINF) headformat="\033[36m$headformat";;
-    $LOG_STAWRN) headformat="\033[31m$headformat";;
-    *)           headformat="\033[32m$headformat";;
-  esac
-  lvl=$1
-  msg=$2
-  if [[ -z $msg ]];then return ;fi
-  shift 2
-
-  if [[ $msg =~ " " ]];then val= ;else val="${!msg}";execformat="\033[32m";fi
-
-  while (( "$#" ));do
-    case "$1" in
-        $LOG_MODESL) tailformat="\r" ;;
-        $LOG_MODESZ) val=$(formatsize $val) ;;
-    esac
-    shift 1
-  done
-  
-  case "$VERBOSE_LV" in
-    0) if [[ $lvl ]];then return ;fi;;
-	1|2|3) if ! [[ "$LOG_STAINF,$LOG_STAWRN,$LOG_STAERR" =~ $lvl ]];then return ;fi;;
-	4|5|6) if ! [[ "$LOG_STAINF,$LOG_STAWRN,$LOG_STAERR,$LOG_STADBG" =~ $lvl ]];then return ;fi;;
-	7|8|9) ;;
-  esac
-
-  printf "$headformat \033[39m$msg $execformat$val \033[39m$tailformat"
-}
 
 main(){
 	if [[ -z $EXECMODE ]];then exit 4;fi
@@ -91,8 +53,8 @@ main(){
 			if [[ -z $SOURCE ]];then 
 				log $LOG_STAERR "fatal : no source"
 				exit 2
-			elif [[ ! -f ~/chaindb/indexs/$SOURCE ]];then
-				log $LOG_STAERR "fatal : invalid source"
+			elif [[ ! -f ./chaindb/indexs/$SOURCE ]];then
+				log $LOG_STAERR "fatal : invalid source (./chaindb/indexs/$SOURCE)"
 				exit 5
 			elif [[ -z $BLOCK ]];then 
 				log $LOG_STAERR "fatal : no block"
@@ -102,26 +64,28 @@ main(){
 				exit 6
 			fi
 			log $LOG_STAINF "Checking for : $BLOCK in $SOURCE ($HASHVALUE)"
-			CHECKED=
-			for ip in $(cat ~/chaindb/fileserver | grep -v '#' || exit 9);do
-				if [[ $ip = "127.0.0.1" ]];then
+			CHECKED=0
+			FILES=($(cat ~/chaindb/fileserver | grep -v '#' || exit 9))
+			for IPCOPY in ${FILES[@]};do
+				if [[ $IPCOPY = "127.0.0.1" ]];then
 					locate=local
 					log $LOG_STAINF "Testing local node : "
 					if [[ ! -f ~/files/$BLOCK ]];then continue;fi
 					retcode=$([[ ! -f ~/files/$BLOCK ]] && echo 1 || [[ ! $(md5sum ~/files/$BLOCK | cut -d ' ' -f1) = $HASHVALUE ]] && echo 2 || echo 0)
 				else
+					if [[ -z $(echo $IPCOPY | grep -o ".*@") ]];then IPCOPY="$USERACCESS@$IPCOPY";fi
 					locate=remote
-					log $LOG_STAINF "Testing remote node : $ip "
-					CMP=$(ssh $USERACCESS@$ip "[[ -f ~/files/$BLOCK ]] && md5sum ~/files/$BLOCK | cut -d ' ' -f1 || exit 1")
+					log $LOG_STAINF "Testing remote node : $IPCOPY "
+					CMP=$(ssh $IPCOPY "[[ -f ~/files/$BLOCK ]] && md5sum ~/files/$BLOCK | cut -d ' ' -f1 || exit 1")
 					retcode=$([[ $CMP = $HASHVALUE ]] && return 0 || [[ -z $CMP ]] && return 1 || return 2 )
 				fi
 
-				if   [[ $retcode -eq 0 ]];then log $LOG_STAINF "Testing $locate node : success";CHECKED=1
+				if   [[ $retcode -eq 0 ]];then log $LOG_STAINF "Testing $locate node : success";CHECKED=$(($CHECKED+1))
 				elif [[ $retcode -eq 1 ]];then log $LOG_STAINF "Testing $locate node : file not found"
 				elif [[ $retcode -eq 2 ]];then log $LOG_STAINF "Testing $locate node : hash failure"
-				else log $LOG_STAERR "Return Invalid Code : $retcode";fi
+				else log $LOG_STAERR "Invalid Return Code : $retcode";fi
 			done
-			if [[ -z $CHECKED ]];then exit 7
+			if [[ $CHECKED -lt $((${#FILES[@]}/2+1)) ]];then exit 7
 			else exit 0 ;fi
  		;;
 		recover)
@@ -195,18 +159,57 @@ main(){
 	esac
 }
 
+getiplike(){
+	#Support <username>@<ip>
+	echo $(echo $1 | grep -E -o "([a-zA-Z0-9_]*@)?((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)")
+}
+
+log(){
+  out=$LOG_STDOUT
+  headformat=$1
+  execformat=""
+  tailformat="\n\r";
+  case "$1" in
+    $LOG_STADBG) headformat="\033[33m$headformat";;
+    $LOG_STAERR) headformat="\033[31m$headformat"; out=$LOG_STDERR;;
+    $LOG_STAINF) headformat="\033[36m$headformat";;
+    $LOG_STAWRN) headformat="\033[31m$headformat";;
+    *)           headformat="\033[32m$headformat";;
+  esac
+  lvl=$1
+  msg=$2
+  if [[ -z $msg ]];then return ;fi
+  shift 2
+
+  if [[ $msg =~ " " ]];then val= ;else val="${!msg}";execformat="\033[32m";fi
+
+  while (( "$#" ));do
+    case "$1" in
+        $LOG_MODESL) tailformat="\r" ;;
+        $LOG_MODESZ) val=$(formatsize $val) ;;
+		$LOG_MODEAR) val="Array::$msg($(eval echo \${#${msg}[@]}))" ;;
+    esac
+    shift 1
+  done
+  
+  case "$VERBOSE_LV" in
+    0) if [[ $lvl ]];then return ;fi;;
+	1|2|3) if ! [[ "$LOG_STAINF,$LOG_STAWRN,$LOG_STAERR" =~ $lvl ]];then return ;fi;;
+	4|5|6) if ! [[ "$LOG_STAINF,$LOG_STAWRN,$LOG_STAERR,$LOG_STADBG" =~ $lvl ]];then return ;fi;;
+	7|8|9) ;;
+  esac
+
+  printf "$headformat \033[39m$msg $execformat$val \033[39m$tailformat"
+}
+
+
+
 
 #ARGS   - PARSER
 while (( "$#" ));do
     case "$1" in
-        -h|--help)
-            help $2
-            exit 0;
-        ;;
-		--block)
-			BLOCK=$2
-			shift 1
-		;;
+        -h|--help)help $2;exit 0;;
+		--block) BLOCK=$2;log $LOG_STASET BLOCK;;
 		--check-block)
 			if [[ $EXECMODE ]] && [[ ! $EXECMODE = check ]];then
 				log $LOG_STAERR "EXECMODE already set to $EXECMODE"
@@ -214,8 +217,8 @@ while (( "$#" ));do
 			fi
 			BLOCK=$2
 			EXECMODE=check
+			log $LOG_STASET BLOCK
 			log $LOG_STASET EXECMODE
-			shift 1
 		;;
 		--get-fileserver)
 			if [[ $EXECMODE ]] && [[ ! $EXECMODE = listip ]];then
@@ -224,7 +227,6 @@ while (( "$#" ));do
 			fi
 			EXECMODE=listip
 			log $LOG_STASET EXECMODE
-			shift 1
 		;;
 		-l|--list)
 			if [[ $EXECMODE ]] && [[ ! $EXECMODE = list ]];then
@@ -237,7 +239,6 @@ while (( "$#" ));do
 			done
 			EXECMODE=list
 			log $LOG_STASET EXECMODE
-			shift 1
 		;;
 		-r|--recover)
 			if [[ $EXECMODE ]] && [[ ! $EXECMODE = recover ]];then
@@ -246,21 +247,33 @@ while (( "$#" ));do
 			fi
 			EXECMODE=recover
 			log $LOG_STASET EXECMODE
-			shift 1
 		;;
-		-h|--hash) HASHVALUE=$2;shift 1;;
-		-n|--name) TARGET=$2;shift 1;;
-		-s|--source)  SOURCE=$2;shift 1;;
-		-t|--time)	TEMPORAL=$([[ $2 ]] && echo $2 || echo "recent");shift 1;;
+		-h|--hash)
+			HASHVALUE=$2
+			log $LOG_STASET HASHVALUE
+		;;
+		-n|--name)
+			TARGET=$2
+			log $LOG_STASET TARGET
+		;;
+		-s|--source)
+			SOURCE=$2
+			log $LOG_STASET SOURCE
+		;;
+		-t|--time)
+			TEMPORAL=$([[ $2 ]] && echo $2 || echo "recent")
+			log $LOG_STASET TEMPORAL
+		;;
         -v*|--verbose)
             if [[ "$1" = "--verbose" ]];then
               if [[ $2 =~ '^[0-9]+$' ]];then VERBOSE_LV=$2; else VERBOSE_LV=1;fi
             else VERBOSE_LV=$((${#1}-1));fi
             log $LOG_STASET VERBOSE_LV
-            shift 1
         ;;
-        *) shift 1;;
+        *)
+		;;
     esac
+	shift 1
 done
 
 main

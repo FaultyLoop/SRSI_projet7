@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+VERSION="1.1"
 #CONFIG - DEFAULT
 ENCRY_MODE=aes256       #Encrypt Mode
 FHASH_MODE=md5          #File (splited) Hash (checksum) md5

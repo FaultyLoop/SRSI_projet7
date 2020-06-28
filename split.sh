@@ -37,7 +37,7 @@ INDEX_HEAD=             #Index Header (See HeaderInfo)
 
 #MAIN   - FUNCTION
 fill(){
-	 #DISABLED 
+	 #DISABLED (rework for version 1.1.1)
 	> fill
 	if [[ $FFILL_MODE == "random" ]];then
 		dd if=/dev/urandom bs=1 count=$1 status=none of=fill
